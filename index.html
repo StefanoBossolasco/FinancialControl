@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="it" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FinancialControl — Dashboard</title>
+  <meta name="description" content="Piattaforma personale per il controllo delle finanze: budget, categorie, estratti conto Revolut e Intesa San Paolo.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230a84ff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><line x1='12' y1='1' x2='12' y2='23'></line><path d='M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6'></path></svg>">
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- CDN Libraries -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+
+  <!-- Lucide Icons -->
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.395.0/dist/umd/lucide.min.js"></script>
+
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!--  TOAST CONTAINER                                          -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div id="toast-container"></div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!--  SCREEN: LOGIN                                            -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div id="screen-login" class="screen">
+  <div class="auth-card">
+    <div class="auth-logo">
+      <div class="logo-icon"><i data-lucide="wallet" class="lucide-icon"></i></div>
+      <h1>FinancialControl</h1>
+      <p>Il tuo controllo finanziario personale</p>
+    </div>
+    <form id="login-form">
+      <div class="form-group">
+        <label for="login-pw">Password</label>
+        <input type="password" id="login-pw" placeholder="Inserisci la tua password" autocomplete="current-password" required>
+      </div>
+      <button type="submit" id="login-btn" class="btn btn-primary btn-full">Accedi</button>
+    </form>
+    <p class="auth-hint">Prima volta? <a href="#" id="show-setup-link">Configura l'app</a></p>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!--  SCREEN: SETUP (first time)                               -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div id="screen-setup" class="screen hidden">
+  <div class="auth-card">
+    <div class="auth-logo">
+      <div class="logo-icon"><i data-lucide="shield-check" class="lucide-icon"></i></div>
+      <h1>Benvenuto!</h1>
+      <p>Scegli una password per proteggere i tuoi dati</p>
+    </div>
+    <form id="setup-form">
+      <div class="form-group">
+        <label for="setup-pw">Password</label>
+        <input type="password" id="setup-pw" placeholder="Scegli una password (min 6 caratteri)" autocomplete="new-password" required>
+      </div>
+      <div class="form-group">
+        <label for="setup-confirm">Conferma Password</label>
+        <input type="password" id="setup-confirm" placeholder="Ripeti la password" autocomplete="new-password" required>
+      </div>
+      <button type="submit" class="btn btn-primary btn-full">
+        <span>Inizia</span>
+        <i data-lucide="arrow-right" class="lucide-icon icon-sm"></i>
+      </button>
+    </form>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!--  SCREEN: APP                                              -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div id="screen-app" class="screen hidden">
+
+  <!-- ── SIDEBAR ─────────────────────────────────────────── -->
+  <nav id="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-icon"><i data-lucide="wallet" class="lucide-icon"></i></div>
+      <div class="brand-text">Financial<span>Control</span></div>
+    </div>
+
+    <div class="nav-section">
+      <div class="nav-label">Principale</div>
+      <a href="#" class="nav-link active" data-view="dashboard" id="nav-dashboard">
+        <span class="nav-icon"><i data-lucide="layout-dashboard" class="lucide-icon"></i></span><span>Dashboard</span>
+      </a>
+      <a href="#" class="nav-link" data-view="import" id="nav-import">
+        <span class="nav-icon"><i data-lucide="file-down" class="lucide-icon"></i></span><span>Importa</span>
+      </a>
+      <a href="#" class="nav-link" data-view="transactions" id="nav-transactions">
+        <span class="nav-icon"><i data-lucide="credit-card" class="lucide-icon"></i></span><span>Transazioni</span>
+      </a>
+    </div>
+
+    <div class="nav-section">
+      <div class="nav-label">Analisi</div>
+      <a href="#" class="nav-link" data-view="analytics" id="nav-analytics">
+        <span class="nav-icon"><i data-lucide="trending-up" class="lucide-icon"></i></span><span>Analytics</span>
+      </a>
+    </div>
+
+    <div class="nav-section">
+      <div class="nav-label">Config</div>
+      <a href="#" class="nav-link" data-view="settings" id="nav-settings">
+        <span class="nav-icon"><i data-lucide="settings" class="lucide-icon"></i></span><span>Impostazioni</span>
+      </a>
+    </div>
+
+    <div class="sidebar-footer">
+      <!-- Theme Toggle -->
+      <button id="theme-toggle-btn" class="theme-toggle-sidebar" title="Cambia tema">
+        <span class="nav-icon"><i data-lucide="sun" class="lucide-icon" id="theme-icon-light"></i><i data-lucide="moon" class="lucide-icon" id="theme-icon-dark" style="display:none"></i></span>
+        <span>Tema Chiaro</span>
+      </button>
+      <button id="logout-btn"><span class="nav-icon"><i data-lucide="log-out" class="lucide-icon"></i></span><span>Logout</span></button>
+    </div>
+  </nav>
+
+  <!-- ── MAIN CONTENT ────────────────────────────────────── -->
+  <div id="main-content">
+
+    <!-- Header -->
+    <header id="app-header">
+      <div class="header-left">
+        <button id="sidebar-toggle" title="Nascondi/mostra sidebar">
+          <i data-lucide="panel-left" class="lucide-icon"></i>
+        </button>
+        <span id="page-title">Dashboard</span>
+      </div>
+      <div class="header-right">
+        <div id="month-nav" style="display:flex">
+          <button id="prev-month-btn" title="Mese precedente">
+            <i data-lucide="chevron-left" class="lucide-icon icon-sm"></i>
+          </button>
+          <span id="month-label">—</span>
+          <button id="next-month-btn" title="Mese successivo">
+            <i data-lucide="chevron-right" class="lucide-icon icon-sm"></i>
+          </button>
+        </div>
+        <button id="header-sync-btn" title="Sincronizza con GitHub">
+          <i data-lucide="cloud" class="lucide-icon icon-sm"></i> Sync
+        </button>
+      </div>
+    </header>
+
+    <!-- Views -->
+    <div class="view-container">
+
+      <!-- ═══════════════════════════════════════════════════ -->
+      <!-- VIEW: DASHBOARD                                     -->
+      <!-- ═══════════════════════════════════════════════════ -->
+      <section id="view-dashboard" class="view">
+
+        <!-- KPI Row -->
+        <div class="kpi-grid">
+          <div class="kpi-card danger">
+            <span class="kpi-label">Uscite del Mese</span>
+            <span class="kpi-value negative" id="kpi-expenses">€ 0</span>
+          </div>
+          <div class="kpi-card success">
+            <span class="kpi-label">Entrate del Mese</span>
+            <span class="kpi-value positive" id="kpi-income">€ 0</span>
+          </div>
+          <div class="kpi-card">
+            <span class="kpi-label">Budget Rimanente</span>
+            <span class="kpi-value" id="kpi-remaining">€ 0</span>
+          </div>
+          <div class="kpi-card warning">
+            <span class="kpi-label">Categorie Over Budget</span>
+            <span class="kpi-value" id="kpi-overbudget">0</span>
+          </div>
+        </div>
+
+        <!-- Budget Progress -->
+        <div class="card budget-progress mb-15">
+          <div class="card-title">Utilizzo Budget Mensile</div>
+          <div class="bar-track"><div class="bar-fill ok" id="budget-bar-fill" style="width:0%"></div></div>
+          <div class="bar-label" id="budget-bar-label">0% del budget mensile</div>
+        </div>
+
+        <!-- Charts -->
+        <div class="charts-row mb-15">
+          <div class="chart-card">
+            <h3>Spese per Categoria</h3>
+            <div id="chart-donut-wrap" class="chart-wrap">
+              <canvas id="chart-donut"></canvas>
+            </div>
+          </div>
+          <div class="chart-card">
+            <h3>Budget vs Effettivo</h3>
+            <div class="chart-wrap" style="height:320px">
+              <canvas id="chart-budget"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- Monthly Transactions List -->
+        <div class="card">
+          <div class="section-header mb-1" style="flex-wrap:wrap;gap:0.75rem">
+            <div>
+              <span class="section-title">Tutte le Transazioni del Mese</span>
+              <span class="muted small" id="dash-tx-count" style="margin-left:0.5rem"></span>
+            </div>
+            <div style="display:flex;gap:0.5rem;align-items:center">
+              <button class="btn btn-primary btn-sm" id="dash-add-exp-btn" onclick="openAddExpenseModal()">
+                <i data-lucide="plus" class="lucide-icon icon-sm"></i> Nuova Spesa
+              </button>
+            </div>
+          </div>
+
+          <!-- Quick Filters in Dashboard -->
+          <div style="display:flex;gap:0.75rem;margin-bottom:1rem;flex-wrap:wrap;align-items:center">
+            <div class="search-input-wrap" style="flex:1;min-width:180px">
+              <i data-lucide="search" class="lucide-icon icon-sm search-icon"></i>
+              <input type="text" id="dash-tx-search" placeholder="Cerca nel mese…" class="input-sm input-with-icon">
+            </div>
+            <select id="dash-tx-cat" class="cat-select" style="min-width:160px;padding:0.4rem 0.6rem">
+              <option value="">Tutte le categorie</option>
+            </select>
+          </div>
+
+          <div style="overflow-x:auto;max-height:550px">
+            <table>
+              <thead>
+                <tr>
+                  <th>Data</th><th>Descrizione & Note</th><th>Categoria</th><th>Importo EUR</th><th>Fonte</th><th style="width:70px">Azioni</th>
+                </tr>
+              </thead>
+              <tbody id="recent-tx-body">
+                <tr><td colspan="6" class="empty-row">Nessuna transazione questo mese</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ═══════════════════════════════════════════════════ -->
+      <!-- VIEW: IMPORT                                        -->
+      <!-- ═══════════════════════════════════════════════════ -->
+      <section id="view-import" class="view hidden">
+
+        <div class="section-header mb-15">
+          <h2 class="section-title">Importa Estratti Conto</h2>
+          <button class="btn btn-secondary btn-sm" id="imp-reset-btn">
+            <i data-lucide="rotate-ccw" class="lucide-icon icon-sm"></i> Ricomincia
+          </button>
+        </div>
+
+        <!-- Step Indicators -->
+        <div class="step-indicators">
+          <div class="step active" data-s="1">
+            <div class="step-num">1</div>
+            <span class="step-name">Carica file</span>
+          </div>
+          <div class="step-sep"></div>
+          <div class="step" data-s="2">
+            <div class="step-num">2</div>
+            <span class="step-name">Categorizza</span>
+          </div>
+          <div class="step-sep"></div>
+          <div class="step" data-s="3">
+            <div class="step-num">3</div>
+            <span class="step-name">Conferma</span>
+          </div>
+        </div>
+
+        <!-- STEP 1: Upload files -->
+        <div class="imp-step" id="imp-step-1">
+          <p class="muted mb-15" style="font-size:0.875rem">
+            Carica gli estratti conto. Puoi caricare uno o più file insieme.
+            Per la conversione USD→EUR carica sia il file EUR che USD di Revolut.
+          </p>
+          <div class="dz-grid">
+            <!-- Revolut EUR -->
+            <div class="dropzone" id="dz-rev-eur">
+              <div class="dz-icon"><i data-lucide="circle-dollar-sign" class="lucide-icon lucide-lg" style="color:var(--success)"></i></div>
+              <div class="dz-label">Revolut EUR</div>
+              <div class="dz-hint">File .csv (valuta EUR)</div>
+            </div>
+            <!-- Revolut USD -->
+            <div class="dropzone" id="dz-rev-usd">
+              <div class="dz-icon"><i data-lucide="circle-dollar-sign" class="lucide-icon lucide-lg" style="color:var(--primary)"></i></div>
+              <div class="dz-label">Revolut USD</div>
+              <div class="dz-hint">File .csv (valuta USD)</div>
+            </div>
+            <!-- Intesa -->
+            <div class="dropzone" id="dz-intesa">
+              <div class="dz-icon"><i data-lucide="landmark" class="lucide-icon lucide-lg" style="color:var(--purple)"></i></div>
+              <div class="dz-label">Intesa San Paolo</div>
+              <div class="dz-hint">File .xlsx da Area Clienti</div>
+            </div>
+          </div>
+          <div class="imp-nav">
+            <span></span>
+            <button class="btn btn-primary" id="imp-next-1">
+              Avanti <i data-lucide="arrow-right" class="lucide-icon icon-sm"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- STEP 2: Review & Categorize -->
+        <div class="imp-step hidden" id="imp-step-2">
+          <div id="import-exchange-info"></div>
+
+          <!-- Manual rate row (shown only when needed) -->
+          <div class="manual-rate-row hidden" id="manual-rate-row">
+            <label><i data-lucide="alert-triangle" class="lucide-icon icon-sm" style="color:var(--warning)"></i> Tasso USD/EUR non trovato. Inserisci manualmente (USD per 1 EUR):</label>
+            <input type="number" id="manual-rate-input" placeholder="es. 1.09" step="0.0001" min="0.5" max="2">
+            <button class="btn btn-secondary btn-sm" id="apply-manual-rate">Applica</button>
+          </div>
+
+          <!-- Bulk actions -->
+          <div class="import-controls">
+            <label><input type="checkbox" id="select-all-imp"> Seleziona tutti</label>
+            <select id="bulk-cat-select" class="cat-select" style="min-width:180px">
+              <option value="">Assegna categoria ai selezionati…</option>
+            </select>
+            <button class="btn btn-secondary btn-sm" id="apply-bulk-cat">Applica</button>
+            <span class="imp-count" id="imp-count-label" style="margin-left:auto"></span>
+          </div>
+
+          <!-- Table -->
+          <div style="overflow-x:auto">
+            <table>
+              <thead>
+                <tr>
+                  <th style="width:36px"><input type="checkbox" id="select-all-imp-head" onchange="document.getElementById('select-all-imp').click()"></th>
+                  <th>Data</th><th>Descrizione</th>
+                  <th>Importo orig.</th><th>EUR</th>
+                  <th>Fonte</th><th>Categoria</th>
+                </tr>
+              </thead>
+              <tbody id="imp-table-body"></tbody>
+            </table>
+          </div>
+          <div id="imp-pagination"></div>
+
+          <div class="imp-nav mt-1">
+            <button class="btn btn-secondary" id="imp-back-2">
+              <i data-lucide="arrow-left" class="lucide-icon icon-sm"></i> Indietro
+            </button>
+            <button class="btn btn-primary" id="imp-next-2">
+              Avanti <i data-lucide="arrow-right" class="lucide-icon icon-sm"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- STEP 3: Summary & Confirm -->
+        <div class="imp-step hidden" id="imp-step-3">
+          <div id="imp-summary-body"></div>
+          <div class="imp-nav mt-1">
+            <button class="btn btn-secondary" id="imp-back-3">
+              <i data-lucide="arrow-left" class="lucide-icon icon-sm"></i> Modifica
+            </button>
+            <button class="btn btn-success" id="imp-confirm-btn">
+              <i data-lucide="check" class="lucide-icon icon-sm"></i> Importa le transazioni
+            </button>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ═══════════════════════════════════════════════════ -->
+      <!-- VIEW: TRANSACTIONS                                  -->
+      <!-- ═══════════════════════════════════════════════════ -->
+      <section id="view-transactions" class="view hidden">
+
+        <div class="section-header mb-15">
+          <h2 class="section-title">Transazioni</h2>
+          <span class="muted small" id="tx-count"></span>
+        </div>
+
+        <!-- Filters -->
+        <div class="card mb-1" style="padding:1rem">
+          <div style="display:flex;gap:0.75rem;flex-wrap:wrap;align-items:center">
+            <div class="search-input-wrap" style="flex:1;min-width:180px">
+              <i data-lucide="search" class="lucide-icon icon-sm search-icon"></i>
+              <input type="text" id="tx-search" placeholder="Cerca descrizione…" class="input-with-icon">
+            </div>
+            <select id="tx-filter-category" class="select-styled" style="min-width:180px">
+              <option value="">Tutte le categorie</option>
+            </select>
+            <select id="tx-filter-source" class="select-styled">
+              <option value="">Tutte le fonti</option>
+              <option value="revolut_eur">Revolut EUR</option>
+              <option value="revolut_usd">Revolut USD</option>
+              <option value="intesa">Intesa San Paolo</option>
+            </select>
+            <select id="tx-filter-year" class="select-styled">
+              <option value="">Mese corrente</option>
+              <option value="2024">2024 (intero anno)</option>
+              <option value="2025">2025 (intero anno)</option>
+              <option value="2026">2026 (intero anno)</option>
+              <option value="2027">2027 (intero anno)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Table -->
+        <div class="card" style="padding:0">
+          <div style="overflow-x:auto">
+            <table>
+              <thead>
+                <tr>
+                  <th>Data</th><th>Descrizione</th><th>Categoria</th>
+                  <th>Orig.</th><th>EUR</th><th>Fonte</th><th style="width:40px"></th>
+                </tr>
+              </thead>
+              <tbody id="tx-table-body">
+                <tr><td colspan="7" class="empty-row">Nessuna transazione</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div id="tx-pagination" style="padding:0.75rem 1rem"></div>
+        </div>
+
+      </section>
+
+      <!-- ═══════════════════════════════════════════════════ -->
+      <!-- VIEW: ANALYTICS                                     -->
+      <!-- ═══════════════════════════════════════════════════ -->
+      <section id="view-analytics" class="view hidden">
+
+        <div class="section-header mb-15">
+          <h2 class="section-title">Analytics</h2>
+          <div id="analytics-year-wrap"></div>
+        </div>
+
+        <!-- Annual KPIs -->
+        <div class="analytics-grid mb-15">
+          <div class="kpi-card danger analytics-kpi">
+            <span class="kpi-label">Uscite Annuali</span>
+            <span class="kpi-value negative" id="an-total-exp">€ 0</span>
+          </div>
+          <div class="kpi-card success analytics-kpi">
+            <span class="kpi-label">Entrate Annuali</span>
+            <span class="kpi-value positive" id="an-total-inc">€ 0</span>
+          </div>
+          <div class="kpi-card analytics-kpi">
+            <span class="kpi-label">Netto Annuale</span>
+            <span class="kpi-value" id="an-total-net">€ 0</span>
+          </div>
+        </div>
+
+        <!-- Monthly trend -->
+        <div class="chart-card mb-15">
+          <h3>Andamento Mensile — Entrate vs Uscite</h3>
+          <div class="chart-wrap chart-tall"><canvas id="chart-trend"></canvas></div>
+        </div>
+
+        <!-- Annual stacked -->
+        <div class="chart-card mb-15">
+          <h3>Spese per Categoria — Mensile</h3>
+          <div class="chart-wrap chart-tall"><canvas id="chart-annual"></canvas></div>
+        </div>
+
+        <!-- Balance -->
+        <div class="chart-card mb-15">
+          <h3>Evoluzione Saldo (EUR) — tutte le transazioni</h3>
+          <div class="chart-wrap chart-full"><canvas id="chart-balance"></canvas></div>
+        </div>
+
+        <!-- Year comparison (hidden if only 1 year) -->
+        <div id="year-compare-section" class="chart-card mb-15 hidden">
+          <h3>Confronto Anno per Anno — Uscite Mensili</h3>
+          <div class="chart-wrap chart-full"><canvas id="chart-year-compare"></canvas></div>
+        </div>
+
+        <!-- Annual category table -->
+        <div class="card">
+          <div class="section-header">
+            <span class="section-title">Riepilogo per Categoria</span>
+          </div>
+          <div style="overflow-x:auto">
+            <table>
+              <thead>
+                <tr><th>Categoria</th><th>Speso</th><th>Budget Annuale</th><th>% Utilizzo</th></tr>
+              </thead>
+              <tbody id="an-cat-table-body"></tbody>
+            </table>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ═══════════════════════════════════════════════════ -->
+      <!-- VIEW: SETTINGS                                      -->
+      <!-- ═══════════════════════════════════════════════════ -->
+      <section id="view-settings" class="view hidden">
+
+        <h2 class="section-title mb-15">Impostazioni</h2>
+
+        <div class="grid-2 gap-1">
+
+          <!-- LEFT COLUMN -->
+          <div>
+
+            <!-- Budget per categoria -->
+            <div class="card settings-section mb-1">
+              <h3>Budget Mensile per Categoria</h3>
+              <div style="overflow-y:auto;max-height:340px">
+                <table class="budget-table">
+                  <tbody id="budget-table-body"></tbody>
+                </table>
+              </div>
+              <div class="mt-1">
+                <button class="btn btn-primary btn-sm" id="save-budget-btn">
+                  <i data-lucide="save" class="lucide-icon icon-sm"></i> Salva Budget
+                </button>
+              </div>
+            </div>
+
+            <!-- Categories management -->
+            <div class="card settings-section">
+              <h3>Gestione Categorie</h3>
+              <div class="cat-list" id="categories-list"></div>
+              <div class="add-cat-row">
+                <input type="text" id="new-cat-input" placeholder="Nuova categoria…">
+                <button class="btn btn-secondary btn-sm" id="add-cat-btn">
+                  <i data-lucide="plus" class="lucide-icon icon-sm"></i> Aggiungi
+                </button>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- RIGHT COLUMN -->
+          <div>
+
+            <!-- GitHub Config -->
+            <div class="card settings-section mb-1">
+              <h3>Sincronizzazione GitHub</h3>
+              <div class="gh-grid">
+                <div class="form-group">
+                  <label>GitHub Username / Org</label>
+                  <input type="text" id="gh-owner" placeholder="es. stefanobossolasco">
+                </div>
+                <div class="form-group">
+                  <label>Nome Repository</label>
+                  <input type="text" id="gh-repo" placeholder="es. FinancialControl">
+                </div>
+                <div class="form-group">
+                  <label>Branch</label>
+                  <input type="text" id="gh-branch" placeholder="main">
+                </div>
+                <div class="form-group">
+                  <label>Path file dati</label>
+                  <input type="text" id="gh-path" placeholder="data.json">
+                </div>
+                <div class="form-group gh-full">
+                  <label>Personal Access Token (PAT)</label>
+                  <input type="password" id="gh-pat" placeholder="ghp_…">
+                </div>
+              </div>
+              <div class="flex gap-05">
+                <button class="btn btn-secondary btn-sm" id="gh-test-btn">Testa connessione</button>
+                <button class="btn btn-primary btn-sm" id="save-gh-btn">Salva config</button>
+              </div>
+              <div style="margin-top:1rem;display:flex;gap:0.5rem">
+                <button class="btn btn-secondary btn-sm" id="sync-pull-btn">
+                  <i data-lucide="download" class="lucide-icon icon-sm"></i> Pull da GitHub
+                </button>
+                <button class="btn btn-secondary btn-sm" id="sync-push-btn">
+                  <i data-lucide="upload" class="lucide-icon icon-sm"></i> Push su GitHub
+                </button>
+              </div>
+            </div>
+
+            <!-- Account settings -->
+            <div class="card settings-section mb-1">
+              <h3>Account</h3>
+              <div class="settings-row">
+                <label>Saldo iniziale (EUR) — usato per il grafico saldo</label>
+                <input type="number" id="initial-balance" placeholder="0" style="width:120px">
+              </div>
+              <button class="btn btn-secondary btn-sm mb-1" id="save-account-btn">Salva</button>
+
+              <h3 style="margin-top:1.25rem">Cambia Password</h3>
+              <div class="form-group">
+                <label>Password attuale</label>
+                <input type="password" id="curr-password" placeholder="Password corrente">
+              </div>
+              <div class="form-group">
+                <label>Nuova password</label>
+                <input type="password" id="new-password" placeholder="Nuova password">
+              </div>
+              <div class="form-group">
+                <label>Conferma nuova password</label>
+                <input type="password" id="conf-password" placeholder="Conferma">
+              </div>
+              <button class="btn btn-secondary btn-sm" id="change-pw-btn">Aggiorna password</button>
+            </div>
+
+            <!-- Data management -->
+            <div class="card settings-section danger-zone">
+              <h3>Gestione Dati</h3>
+              <div class="danger-row">
+                <div><strong style="font-size:0.875rem">Esporta dati</strong><p>Scarica data.json completo</p></div>
+                <button class="btn btn-secondary btn-sm" id="export-data-btn">
+                  <i data-lucide="download" class="lucide-icon icon-sm"></i> Esporta
+                </button>
+              </div>
+              <div class="danger-row">
+                <div><strong style="font-size:0.875rem">Importa dati</strong><p>Carica un data.json esistente</p></div>
+                <button class="btn btn-secondary btn-sm" id="import-data-btn">
+                  <i data-lucide="upload" class="lucide-icon icon-sm"></i> Importa
+                </button>
+              </div>
+              <div class="danger-row">
+                <div><strong style="font-size:0.875rem;color:var(--danger)">Cancella tutto</strong><p>Elimina tutte le transazioni</p></div>
+                <button class="btn btn-danger btn-sm" id="clear-all-btn">
+                  <i data-lucide="trash-2" class="lucide-icon icon-sm"></i> Cancella
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+      </section>
+
+    </div><!-- /view-container -->
+  </div><!-- /main-content -->
+</div><!-- /screen-app -->
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!--  MODAL: ADD SINGLE EXPENSE                                -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div id="modal-add-expense" class="modal-overlay hidden">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3 id="modal-expense-title">
+        <i data-lucide="plus-circle" class="lucide-icon icon-sm"></i> Nuova Spesa / Entrata
+      </h3>
+      <button class="btn-icon" onclick="closeAddExpenseModal()">
+        <i data-lucide="x" class="lucide-icon"></i>
+      </button>
+    </div>
+    <form id="add-expense-form">
+      <div class="modal-body">
+        <div class="grid-2 gap-1 mb-1">
+          <div class="form-group mb-0">
+            <label for="exp-date">Data</label>
+            <input type="date" id="exp-date" required>
+          </div>
+          <div class="form-group mb-0">
+            <label for="exp-type">Tipo</label>
+            <select id="exp-type" class="select-styled" style="width:100%">
+              <option value="Expense">Spesa (Uscita)</option>
+              <option value="Income">Entrata</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group mb-1">
+          <label for="exp-desc">Descrizione</label>
+          <input type="text" id="exp-desc" placeholder="es. Spesa al supermercato" required>
+        </div>
+
+        <div class="grid-2 gap-1 mb-1">
+          <div class="form-group mb-0">
+            <label for="exp-amount">Importo</label>
+            <input type="number" id="exp-amount" placeholder="0.00" step="0.01" min="0.01" required>
+          </div>
+          <div class="form-group mb-0">
+            <label for="exp-currency">Valuta</label>
+            <select id="exp-currency" class="select-styled" style="width:100%">
+              <option value="EUR">EUR (€)</option>
+              <option value="USD">USD ($)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid-2 gap-1 mb-1">
+          <div class="form-group mb-0">
+            <label for="exp-category">Categoria</label>
+            <select id="exp-category" class="select-styled" style="width:100%" required>
+            </select>
+          </div>
+          <div class="form-group mb-0">
+            <label for="exp-source">Fonte / Conto</label>
+            <select id="exp-source" class="select-styled" style="width:100%">
+              <option value="revolut_eur">Revolut EUR</option>
+              <option value="revolut_usd">Revolut USD</option>
+              <option value="intesa">Intesa San Paolo</option>
+              <option value="satispay">Satispay</option>
+              <option value="other">Altro / Contanti</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group mb-0">
+          <label for="exp-notes">Note (opzionale)</label>
+          <input type="text" id="exp-notes" placeholder="es. Dettagli o promemoria…">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeAddExpenseModal()">Annulla</button>
+        <button type="submit" class="btn btn-primary">Salva Spesa</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!--  MODAL: EDIT NOTE                                         -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div id="modal-edit-note" class="modal-overlay hidden">
+  <div class="modal-content" style="max-width:440px">
+    <div class="modal-header">
+      <h3><i data-lucide="pencil" class="lucide-icon icon-sm"></i> Modifica Nota</h3>
+      <button class="btn-icon" onclick="closeNoteModal()">
+        <i data-lucide="x" class="lucide-icon"></i>
+      </button>
+    </div>
+    <form id="edit-note-form">
+      <div class="modal-body">
+        <p id="note-tx-info" class="muted small mb-1" style="font-weight:500"></p>
+        <input type="hidden" id="note-tx-id">
+        <div class="form-group mb-0">
+          <label for="note-text">Nota / Dettaglio</label>
+          <textarea id="note-text" rows="3" class="input" style="width:100%;resize:vertical" placeholder="Inserisci una nota per questa transazione…"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeNoteModal()">Annulla</button>
+        <button type="submit" class="btn btn-primary">Salva Nota</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Scripts -->
+<script src="js/auth.js"></script>
+<script src="js/data.js"></script>
+<script src="js/import.js"></script>
+<script src="js/charts.js"></script>
+<script src="js/github.js"></script>
+<script src="js/app.js"></script>
+
+</body>
+</html>
