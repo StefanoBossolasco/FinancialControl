@@ -467,7 +467,13 @@
 
         <!-- Balance -->
         <div class="chart-card mb-15">
-          <h3>Evoluzione Saldo (EUR) — tutte le transazioni</h3>
+          <div style="display:flex;align-items:center;justify-space-between;margin-bottom:1.25rem;flex-wrap:wrap;gap:0.5rem">
+            <h3 style="margin-bottom:0">Evoluzione Saldo (EUR) — tutte le transazioni</h3>
+            <div style="display:flex;gap:0.35rem;margin-left:auto">
+              <button class="btn btn-primary btn-sm" id="balance-mode-monthly" onclick="setBalanceMode('monthly')">Mensile</button>
+              <button class="btn btn-secondary btn-sm" id="balance-mode-daily" onclick="setBalanceMode('daily')">Giornaliero</button>
+            </div>
+          </div>
           <div class="chart-wrap chart-full"><canvas id="chart-balance"></canvas></div>
         </div>
 

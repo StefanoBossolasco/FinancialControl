@@ -105,7 +105,7 @@ const Charts = (() => {
     });
   }
 
-  // ── Monthly trend bar — Income vs Expenses ─────────────────
+  // ── Monthly trend line — Income vs Expenses ─────────────────
   function monthlyTrend(id, year, monthlyData) {
     const labels   = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
     const expData  = labels.map((_, i) => {
@@ -118,12 +118,50 @@ const Charts = (() => {
     });
 
     return create(id, {
-      type: 'bar',
+      type: 'line',
       data: {
         labels,
         datasets: [
-          { label: 'Entrate', data: incData, backgroundColor: 'rgba(48,209,88,0.85)', borderRadius: 6 },
-          { label: 'Uscite',  data: expData, backgroundColor: 'rgba(255,69,58,0.85)', borderRadius: 6 }
+          {
+            label: 'Entrate',
+            data: incData,
+            borderColor: '#30d158',
+            backgroundColor: (ctx) => {
+              const chart = ctx.chart;
+              const { ctx: c, chartArea: a } = chart;
+              if (!a) return 'rgba(48,209,88,0.1)';
+              const gradient = c.createLinearGradient(0, a.top, 0, a.bottom);
+              gradient.addColorStop(0, 'rgba(48,209,88,0.22)');
+              gradient.addColorStop(1, 'rgba(48,209,88,0.0)');
+              return gradient;
+            },
+            fill: true,
+            tension: 0.35,
+            borderWidth: 2.5,
+            pointRadius: 4,
+            pointHoverRadius: 7,
+            pointBackgroundColor: '#30d158'
+          },
+          {
+            label: 'Uscite',
+            data: expData,
+            borderColor: '#ff453a',
+            backgroundColor: (ctx) => {
+              const chart = ctx.chart;
+              const { ctx: c, chartArea: a } = chart;
+              if (!a) return 'rgba(255,69,58,0.1)';
+              const gradient = c.createLinearGradient(0, a.top, 0, a.bottom);
+              gradient.addColorStop(0, 'rgba(255,69,58,0.22)');
+              gradient.addColorStop(1, 'rgba(255,69,58,0.0)');
+              return gradient;
+            },
+            fill: true,
+            tension: 0.35,
+            borderWidth: 2.5,
+            pointRadius: 4,
+            pointHoverRadius: 7,
+            pointBackgroundColor: '#ff453a'
+          }
         ]
       },
       options: {
@@ -178,23 +216,32 @@ const Charts = (() => {
     });
   }
 
-  // ── Balance line — Total account evolution ────────────────
-  function balanceLine(id, allTxs, initialBalance = 0) {
+  // ── Balance line — Total account evolution (monthly or daily) ────────────────
+  function balanceLine(id, allTxs, initialBalance = 0, mode = 'monthly') {
     const sorted = [...allTxs]
       .filter(t => t.category !== '__exchange__')
       .sort((a,b) => new Date(a.date) - new Date(b.date));
 
-    // Group by month
-    const monthBalance = {};
+    const balanceMap = {};
     let current = initialBalance;
 
     sorted.forEach(t => {
       current += t.amountEUR;
-      monthBalance[t.month] = current;
+      const key = mode === 'daily' ? t.date : t.month;
+      balanceMap[key] = current;
     });
 
-    const labels = Object.keys(monthBalance).sort();
-    const data   = labels.map(m => monthBalance[m]);
+    const rawLabels = Object.keys(balanceMap).sort();
+    const data      = rawLabels.map(k => balanceMap[k]);
+
+    // Format x-axis labels depending on mode
+    const labels = rawLabels.map(l => {
+      if (mode === 'daily') {
+        const parts = l.split('-');
+        if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0].slice(2)}`;
+      }
+      return l;
+    });
 
     return create(id, {
       type: 'line',
@@ -214,9 +261,9 @@ const Charts = (() => {
             return gradient;
           },
           fill: true,
-          tension: 0.35,
-          pointRadius: 4,
-          pointHoverRadius: 7,
+          tension: mode === 'daily' ? 0.15 : 0.35,
+          pointRadius: mode === 'daily' ? 2 : 4,
+          pointHoverRadius: mode === 'daily' ? 5 : 7,
           pointBackgroundColor: '#0a84ff'
         }]
       },
@@ -228,7 +275,10 @@ const Charts = (() => {
           tooltip: { callbacks: { label: ctx => ` Saldo: ${fmt(ctx.raw)}` } }
         },
         scales: {
-          x: { grid: { color: 'rgba(255,255,255,0.06)' } },
+          x: {
+            grid: { color: mode === 'daily' ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.06)' },
+            ticks: { maxTicksLimit: mode === 'daily' ? 30 : 24, font: { size: 10 } }
+          },
           y: { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { callback: v => fmt(v, true) } }
         }
       }

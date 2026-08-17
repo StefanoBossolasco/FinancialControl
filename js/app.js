@@ -7,6 +7,7 @@ const S = {
   view:  'dashboard',
   year:  new Date().getFullYear(),
   month: new Date().getMonth() + 1,  // 1-12
+  balanceMode: 'monthly',
 
   // Dashboard monthly list filter
   dashFilter: { search: '', category: '' },
@@ -761,7 +762,12 @@ function renderAnalytics() {
 
   // Balance chart
   const settings = Data.getSettings();
-  Charts.balanceLine('chart-balance', allTxs, settings.initialBalance || 0);
+  const bMode = S.balanceMode || 'monthly';
+  el('balance-mode-monthly')?.classList.toggle('btn-primary', bMode === 'monthly');
+  el('balance-mode-monthly')?.classList.toggle('btn-secondary', bMode !== 'monthly');
+  el('balance-mode-daily')?.classList.toggle('btn-primary', bMode === 'daily');
+  el('balance-mode-daily')?.classList.toggle('btn-secondary', bMode !== 'daily');
+  Charts.balanceLine('chart-balance', allTxs, settings.initialBalance || 0, bMode);
 
   // Annual category table
   const annualCats = Data.getAnnualCategoryTotals(selYear);
@@ -776,6 +782,18 @@ function renderAnalytics() {
       <td class="${cls}">${pct}%</td></tr>`;
   }).join('');
   set('an-cat-table-body', rows || '<tr><td colspan="4" class="empty-row">Nessun dato</td></tr>');
+}
+
+function setBalanceMode(mode) {
+  S.balanceMode = mode;
+  el('balance-mode-monthly')?.classList.toggle('btn-primary', mode === 'monthly');
+  el('balance-mode-monthly')?.classList.toggle('btn-secondary', mode !== 'monthly');
+  el('balance-mode-daily')?.classList.toggle('btn-primary', mode === 'daily');
+  el('balance-mode-daily')?.classList.toggle('btn-secondary', mode !== 'daily');
+
+  const allTxs = Data.getTransactions({});
+  const settings = Data.getSettings();
+  Charts.balanceLine('chart-balance', allTxs, settings.initialBalance || 0, mode);
 }
 
 // ── SETTINGS ──────────────────────────────────────────────────
