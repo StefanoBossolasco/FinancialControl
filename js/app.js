@@ -26,11 +26,19 @@ const S = {
   },
 
   // Transactions list
-  txFilter: { search: '', category: '', source: '', year: '', page: 0, PAGE_SIZE: 50 }
+  txFilter: { search: '', category: '', source: '', year: '', page: 0, PAGE_SIZE: 50 },
+
+  // Budget management state
+  budgetState: {
+    mode: 'month', // 'month' or 'default'
+    year: new Date().getFullYear(),
+    month: new Date().getMonth() + 1
+  }
 };
 
 const PAGE_TITLES = {
   dashboard:    'Dashboard',
+  budget:       'Gestione Budget',
   import:       'Importa Estratti Conto',
   transactions: 'Transazioni',
   analytics:    'Analytics',
@@ -95,6 +103,7 @@ function navigate(view) {
 
   switch (view) {
     case 'dashboard':    renderDashboard();    break;
+    case 'budget':       renderBudgetView();   break;
     case 'import':       renderImport();       break;
     case 'transactions': renderTransactions(); break;
     case 'analytics':    renderAnalytics();    break;
@@ -746,6 +755,8 @@ function renderAnalytics() {
   setText('an-total-net',  fmtCompact(yearNet));
   el('an-total-net').className = `kpi-value ${yearNet >= 0 ? 'positive' : 'negative'}`;
 
+
+
   // Charts
   Charts.monthlyTrend('chart-trend', selYear, monthly);
   Charts.annualStacked('chart-annual', selYear, yearTxs);
@@ -760,14 +771,14 @@ function renderAnalytics() {
     el('year-compare-section')?.classList.add('hidden');
   }
 
-  // Balance chart
-  const settings = Data.getSettings();
+  // Balance chart with Forecast
   const bMode = S.balanceMode || 'monthly';
   el('balance-mode-monthly')?.classList.toggle('btn-primary', bMode === 'monthly');
   el('balance-mode-monthly')?.classList.toggle('btn-secondary', bMode !== 'monthly');
   el('balance-mode-daily')?.classList.toggle('btn-primary', bMode === 'daily');
   el('balance-mode-daily')?.classList.toggle('btn-secondary', bMode !== 'daily');
-  Charts.balanceLine('chart-balance', allTxs, settings.initialBalance || 0, bMode);
+  const balForecastData = prepareBalanceForecastData(selYear, bMode);
+  Charts.balanceLine('chart-balance', balForecastData, bMode);
 
   // Annual category table
   const annualCats = Data.getAnnualCategoryTotals(selYear);
@@ -784,6 +795,208 @@ function renderAnalytics() {
   set('an-cat-table-body', rows || '<tr><td colspan="4" class="empty-row">Nessun dato</td></tr>');
 }
 
+function prepareBalanceForecastData(year, mode = 'monthly') {
+  const yr = parseInt(year);
+  const settings = Data.getSettings();
+  let initialBal = settings.initialBalance || 0;
+
+  // Add all transactions prior to selected year
+  const allPriorTxs = Data.getTransactions({}).filter(t => t.category !== '__exchange__' && t.year < yr);
+  allPriorTxs.forEach(t => initialBal += t.amountEUR);
+
+  const yearTxs = Data.getTransactions({ year: yr }).filter(t => t.category !== '__exchange__');
+  const monthsWithTxs = new Set(yearTxs.map(t => t.month));
+  const monthlyData = Data.getMonthlyTotals(yr);
+
+  let lastActualMonth = 0;
+  for (let m = 1; m <= 12; m++) {
+    const k = `${yr}-${String(m).padStart(2,'0')}`;
+    if (monthsWithTxs.has(k)) lastActualMonth = m;
+  }
+
+  // Calculate average monthly income from recorded actual months
+  let incSum = 0;
+  let incCount = 0;
+  for (let m = 1; m <= 12; m++) {
+    const k = `${yr}-${String(m).padStart(2,'0')}`;
+    if (monthsWithTxs.has(k)) {
+      const inc = monthlyData[k]?.income || 0;
+      if (inc > 0) { incSum += inc; incCount++; }
+    }
+  }
+  const avgIncome = incCount > 0 ? (incSum / incCount) : 0;
+
+  if (mode === 'monthly') {
+    const labels = [];
+    const realData = [];
+    const forecastData = [];
+
+    let currentBalance = initialBal;
+    let lastRealVal = null;
+
+    for (let m = 1; m <= 12; m++) {
+      const k = `${yr}-${String(m).padStart(2,'0')}`;
+      const monthName = new Date(yr, m - 1).toLocaleDateString('it-IT', { month: 'short' });
+      labels.push(monthName);
+
+      if (m <= lastActualMonth && lastActualMonth > 0) {
+        const monthNet = (monthlyData[k]?.income || 0) - (monthlyData[k]?.expenses || 0);
+        currentBalance += monthNet;
+        realData.push(currentBalance);
+        forecastData.push(null);
+        if (m === lastActualMonth) lastRealVal = currentBalance;
+      } else {
+        realData.push(null);
+        if (forecastData.length > 0 && forecastData[forecastData.length - 1] === null && lastRealVal !== null) {
+          forecastData[forecastData.length - 1] = lastRealVal;
+        }
+        const budgets = Data.getAllBudgets(k);
+        const plannedBudget = Object.values(budgets).reduce((s, v) => s + v, 0);
+        const projectedNet = avgIncome - plannedBudget;
+        currentBalance += projectedNet;
+        forecastData.push(currentBalance);
+      }
+    }
+
+    return {
+      labels,
+      realData,
+      forecastData,
+      hasForecast: lastActualMonth < 12 && lastActualMonth > 0
+    };
+  } else {
+    // Daily mode with forecast tail
+    const sortedTxs = [...yearTxs].sort((a, b) => new Date(a.date) - new Date(b.date));
+    const dateNet = {};
+    sortedTxs.forEach(t => {
+      dateNet[t.date] = (dateNet[t.date] || 0) + t.amountEUR;
+    });
+
+    const labels = [];
+    const realData = [];
+    const forecastData = [];
+
+    let currentBalance = initialBal;
+    let lastRealVal = null;
+
+    const dates = Object.keys(dateNet).sort();
+    dates.forEach(d => {
+      currentBalance += dateNet[d];
+      const parts = d.split('-');
+      labels.push(`${parts[2]}/${parts[1]}/${parts[0].slice(2)}`);
+      realData.push(currentBalance);
+      forecastData.push(null);
+      lastRealVal = currentBalance;
+    });
+
+    for (let m = lastActualMonth + 1; m <= 12; m++) {
+      if (m <= 0) continue;
+      const k = `${yr}-${String(m).padStart(2,'0')}`;
+      const monthName = new Date(yr, m - 1).toLocaleDateString('it-IT', { month: 'short' });
+      labels.push(`Fine ${monthName}`);
+      realData.push(null);
+
+      if (forecastData.length > 0 && forecastData[forecastData.length - 1] === null && lastRealVal !== null) {
+        forecastData[forecastData.length - 1] = lastRealVal;
+      }
+
+      const budgets = Data.getAllBudgets(k);
+      const plannedBudget = Object.values(budgets).reduce((s, v) => s + v, 0);
+      const projectedNet = avgIncome - plannedBudget;
+      currentBalance += projectedNet;
+      forecastData.push(currentBalance);
+    }
+
+    return {
+      labels,
+      realData,
+      forecastData,
+      hasForecast: lastActualMonth < 12
+    };
+  }
+}
+
+function calculateYearForecast(selYear) {
+  const yr = parseInt(selYear);
+  const monthlyData = Data.getMonthlyTotals(yr);
+  const yearTxs = Data.getTransactions({ year: yr }).filter(t => t.category !== '__exchange__');
+
+  const monthsWithTxs = new Set(yearTxs.map(t => t.month));
+
+  let totalActualExp = 0;
+  let totalRemainingBudget = 0;
+  let totalActualInc = 0;
+
+  const labels = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const monthlyExpActual = [];
+  const monthlyExpForecast = [];
+  const monthlyBalanceForecast = [];
+
+  // Average monthly income from actual recorded months
+  let incCount = 0;
+  let incSum = 0;
+  for (let m = 1; m <= 12; m++) {
+    const k = `${yr}-${String(m).padStart(2,'0')}`;
+    if (monthsWithTxs.has(k)) {
+      const inc = monthlyData[k]?.income || 0;
+      if (inc > 0) { incSum += inc; incCount++; }
+    }
+  }
+  const avgIncome = incCount > 0 ? (incSum / incCount) : 0;
+
+  // Track balance starting from settings initial balance
+  const settings = Data.getSettings();
+  let currentBalance = settings.initialBalance || 0;
+
+  // Add all transactions prior to selected year
+  const allPriorTxs = Data.getTransactions({}).filter(t => t.category !== '__exchange__' && t.year < yr);
+  allPriorTxs.forEach(t => currentBalance += t.amountEUR);
+
+  for (let m = 1; m <= 12; m++) {
+    const k = `${yr}-${String(m).padStart(2,'0')}`;
+    const budgets = Data.getAllBudgets(k);
+    const monthPlannedBud = Object.values(budgets).reduce((s,v) => s + v, 0);
+
+    const hasData = monthsWithTxs.has(k);
+    const actExp = monthlyData[k]?.expenses || 0;
+    const actInc = monthlyData[k]?.income || 0;
+
+    let monthExp = 0;
+    let monthInc = 0;
+
+    if (hasData) {
+      monthExp = actExp;
+      monthInc = actInc;
+      totalActualExp += actExp;
+      totalActualInc += actInc;
+      monthlyExpActual.push(actExp);
+      monthlyExpForecast.push(null);
+    } else {
+      monthExp = monthPlannedBud;
+      monthInc = avgIncome;
+      totalRemainingBudget += monthPlannedBud;
+      monthlyExpActual.push(null);
+      monthlyExpForecast.push(monthPlannedBud);
+    }
+
+    currentBalance += (monthInc - monthExp);
+    monthlyBalanceForecast.push(currentBalance);
+  }
+
+  const totalForecastExp = totalActualExp + totalRemainingBudget;
+
+  return {
+    totalActualExp,
+    totalRemainingBudget,
+    totalForecastExp,
+    eoyBalance: currentBalance,
+    labels,
+    monthlyExpActual,
+    monthlyExpForecast,
+    monthlyBalanceForecast
+  };
+}
+
 function setBalanceMode(mode) {
   S.balanceMode = mode;
   el('balance-mode-monthly')?.classList.toggle('btn-primary', mode === 'monthly');
@@ -791,26 +1004,175 @@ function setBalanceMode(mode) {
   el('balance-mode-daily')?.classList.toggle('btn-primary', mode === 'daily');
   el('balance-mode-daily')?.classList.toggle('btn-secondary', mode !== 'daily');
 
-  const allTxs = Data.getTransactions({});
-  const settings = Data.getSettings();
-  Charts.balanceLine('chart-balance', allTxs, settings.initialBalance || 0, mode);
+  const years = Data.getAvailableYears();
+  const selYear = parseInt(el('analytics-year')?.value || years[0] || new Date().getFullYear());
+  const balForecastData = prepareBalanceForecastData(selYear, mode);
+  Charts.balanceLine('chart-balance', balForecastData, mode);
+}
+
+// ── BUDGET VIEW ───────────────────────────────────────────────
+function renderBudgetView() {
+  if (!Data.get()) Data.load();
+  const yr = S.year || new Date().getFullYear();
+  const mo = S.month || (new Date().getMonth() + 1);
+  const bgState = S.bgView || { mode: 'month', year: yr, month: mo };
+  S.bgView = bgState;
+
+  const modeSel = el('bg-mode-select');
+  if (modeSel) modeSel.value = bgState.mode;
+
+  const monthPicker = el('bg-month-picker');
+  const copyBtn = el('bg-copy-def-btn');
+  const resetBtn = el('bg-reset-btn');
+  const ym = `${bgState.year}-${String(bgState.month).padStart(2,'0')}`;
+
+  let budgets = {};
+  let catActuals = {};
+  if (bgState.mode === 'default') {
+    if (monthPicker) monthPicker.style.display = 'none';
+    if (copyBtn) copyBtn.style.display = 'none';
+    if (resetBtn) resetBtn.style.display = 'none';
+    budgets = Data.get().budgets.default || {};
+  } else {
+    if (monthPicker) monthPicker.style.display = 'flex';
+    if (copyBtn) copyBtn.style.display = 'inline-flex';
+    if (resetBtn) resetBtn.style.display = 'inline-flex';
+    setText('bg-month-label', monthLabel(bgState.year, bgState.month));
+    budgets = Data.getAllBudgets(ym);
+    catActuals = Data.getCategoryTotals(ym);
+  }
+
+  const cats = Data.getCategories();
+  let totalAllocated = 0;
+  let totalSpent = 0;
+  let overBudgetCount = 0;
+
+  const rows = cats.map(c => {
+    const bud = budgets[c] || 0;
+    const spent = catActuals[c] || 0;
+    const rem = bud - spent;
+    totalAllocated += bud;
+    totalSpent += spent;
+
+    if (bud > 0 && spent > bud) overBudgetCount++;
+
+    const pct = bud > 0 ? Math.min((spent / bud) * 100, 100).toFixed(0) : 0;
+    const barCls = spent > bud && bud > 0 ? 'danger' : pct > 80 ? 'warning' : 'ok';
+    const remCls = rem < 0 ? 'negative' : 'positive';
+
+    return `<tr>
+      <td><strong style="font-size:0.9rem">${c}</strong></td>
+      <td>
+        <input type="number" class="input-sm bg-view-input" id="bg-view-${c.replace(/\s/g,'_')}"
+          data-cat="${c}" value="${bud}" min="0" step="10" oninput="updateLiveBgViewTotals()">
+      </td>
+      <td class="mono">${bgState.mode === 'month' ? fmtCompact(spent) : '—'}</td>
+      <td class="mono ${remCls}">${bgState.mode === 'month' ? fmtCompact(rem) : '—'}</td>
+      <td>
+        ${bgState.mode === 'month' && bud > 0 ? `
+          <div style="display:flex;align-items:center;gap:0.5rem">
+            <div class="bar-track" style="flex:1;height:8px;margin:0"><div class="bar-fill ${barCls}" style="width:${pct}%"></div></div>
+            <span class="small mono" style="min-width:36px;text-align:right">${pct}%</span>
+          </div>
+        ` : '<span class="muted small">—</span>'}
+      </td>
+    </tr>`;
+  }).join('');
+
+  set('bg-table-body', rows);
+
+  // Update KPI Cards
+  const remaining = totalAllocated - totalSpent;
+  setText('bg-kpi-total', fmtCompact(totalAllocated));
+  setText('bg-kpi-actual', bgState.mode === 'month' ? fmtCompact(totalSpent) : '—');
+  setText('bg-kpi-remaining', bgState.mode === 'month' ? fmtCompact(remaining) : '—');
+  setText('bg-kpi-over', bgState.mode === 'month' ? overBudgetCount : '—');
+
+  if (el('bg-kpi-remaining')) {
+    el('bg-kpi-remaining').className = `kpi-value ${remaining >= 0 ? 'positive' : 'negative'}`;
+  }
+
+  refreshIcons();
+}
+
+function updateLiveBgViewTotals() {
+  let total = 0;
+  document.querySelectorAll('.bg-view-input').forEach(inp => {
+    total += parseFloat(inp.value) || 0;
+  });
+  setText('bg-kpi-total', fmtCompact(total));
+}
+
+function switchBgMode(mode) {
+  if (!S.bgView) S.bgView = { mode: 'month', year: S.year, month: S.month };
+  S.bgView.mode = mode;
+  renderBudgetView();
+}
+
+function prevBgMonth() {
+  if (!S.bgView) S.bgView = { mode: 'month', year: S.year, month: S.month };
+  if (S.bgView.month === 1) { S.bgView.month = 12; S.bgView.year--; }
+  else S.bgView.month--;
+  renderBudgetView();
+}
+
+function nextBgMonth() {
+  if (!S.bgView) S.bgView = { mode: 'month', year: S.year, month: S.month };
+  if (S.bgView.month === 12) { S.bgView.month = 1; S.bgView.year++; }
+  else S.bgView.month++;
+  renderBudgetView();
+}
+
+function copyDefaultToCurrentBg() {
+  const def = Data.get().budgets.default || {};
+  const cats = Data.getCategories();
+  cats.forEach(c => {
+    const inp = el(`bg-view-${c.replace(/\s/g,'_')}`);
+    if (inp) inp.value = def[c] || 0;
+  });
+  updateLiveBgViewTotals();
+  showToast('Budget predefinito inserito nelle caselle', 'info');
+}
+
+function resetCurrentBgMonth() {
+  const bgState = S.bgView || { mode: 'month', year: S.year, month: S.month };
+  const ym = `${bgState.year}-${String(bgState.month).padStart(2,'0')}`;
+  if (!confirm(`Ripristinare il budget di ${monthLabel(bgState.year, bgState.month)} ai valori predefiniti?`)) return;
+  Data.resetMonthBudgets(ym);
+  renderBudgetView();
+  showToast('Budget mese ripristinato al predefinito', 'info');
+}
+
+async function saveBgViewBudgets() {
+  const cats = Data.getCategories();
+  const map  = {};
+  cats.forEach(c => {
+    const inp = el(`bg-view-${c.replace(/\s/g,'_')}`);
+    if (inp) map[c] = parseFloat(inp.value) || 0;
+  });
+
+  const bgState = S.bgView || { mode: 'month', year: S.year, month: S.month };
+  const ym = `${bgState.year}-${String(bgState.month).padStart(2,'0')}`;
+
+  if (bgState.mode === 'default') {
+    Data.setDefaultBudgets(map);
+    showToast('Budget predefinito salvato!', 'success');
+  } else {
+    Data.setMonthBudgets(ym, map);
+    showToast(`Budget per ${monthLabel(bgState.year, bgState.month)} salvato!`, 'success');
+  }
+
+  if (GitHub.isConfigured()) {
+    try { await GitHub.push(Data.get()); showToast('Sincronizzato su GitHub','success'); }
+    catch(e) { showToast('Sync GitHub fallito: '+e.message,'error'); }
+  }
 }
 
 // ── SETTINGS ──────────────────────────────────────────────────
 function renderSettings() {
-  const cats    = Data.getCategories();
-  const budgets = Data.getAllBudgets(`${new Date().getFullYear()}-01`);
-  const ghCfg   = GitHub.getConfig();
+  const cats     = Data.getCategories();
+  const ghCfg    = GitHub.getConfig();
   const settings = Data.getSettings();
-
-  // Budget table
-  const budgetRows = cats.map(c => `
-    <tr>
-      <td>${c}</td>
-      <td><input type="number" class="input-sm" id="bud-${c.replace(/\s/g,'_')}"
-        value="${budgets[c] || 0}" min="0" step="10"></td>
-    </tr>`).join('');
-  set('budget-table-body', budgetRows);
 
   // Categories list
   const catList = cats.map(c => `
@@ -829,22 +1191,10 @@ function renderSettings() {
 
   // Account settings
   el('initial-balance').value = settings.initialBalance || 0;
+  refreshIcons();
 }
 
-async function saveBudgets() {
-  const cats = Data.getCategories();
-  const map  = {};
-  cats.forEach(c => {
-    const inp = el(`bud-${c.replace(/\s/g,'_')}`);
-    if (inp) map[c] = parseFloat(inp.value) || 0;
-  });
-  Data.setDefaultBudgets(map);
-  showToast('Budget salvati!', 'success');
-  if (GitHub.isConfigured()) {
-    try { await GitHub.push(Data.get()); showToast('Sync GitHub completato','success'); }
-    catch(e) { showToast('Sync GitHub fallito: '+e.message,'error'); }
-  }
-}
+
 
 function addCategory() {
   const name = el('new-cat-input').value.trim();
@@ -956,6 +1306,17 @@ function importDataFile() {
     r.readAsText(f);
   };
   inp.click();
+}
+
+async function reloadSampleData() {
+  if (!confirm('Ripristinare le 330 transazioni da data.json?')) return;
+  const ok = await Data.resetToDefaultData();
+  if (ok) {
+    showToast('Transazioni ricaricate da data.json con successo!', 'success');
+    navigate(S.view);
+  } else {
+    showToast('Impossibile caricare data.json', 'error');
+  }
 }
 
 function clearAllData() {

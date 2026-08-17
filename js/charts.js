@@ -216,63 +216,93 @@ const Charts = (() => {
     });
   }
 
-  // ── Balance line — Total account evolution (monthly or daily) ────────────────
-  function balanceLine(id, allTxs, initialBalance = 0, mode = 'monthly') {
-    const sorted = [...allTxs]
-      .filter(t => t.category !== '__exchange__')
-      .sort((a,b) => new Date(a.date) - new Date(b.date));
+  // ── Balance line — Total account evolution with seamless Forecast ──────────
+  function balanceLine(id, balanceData, mode = 'monthly') {
+    let labels = [];
+    let datasets = [];
+    let showLegend = false;
 
-    const balanceMap = {};
-    let current = initialBalance;
+    if (balanceData && balanceData.labels) {
+      labels = balanceData.labels;
+      showLegend = balanceData.hasForecast || false;
 
-    sorted.forEach(t => {
-      current += t.amountEUR;
-      const key = mode === 'daily' ? t.date : t.month;
-      balanceMap[key] = current;
-    });
+      datasets.push({
+        label: 'Saldo Reale (Storico)',
+        data: balanceData.realData,
+        borderColor: '#0a84ff',
+        backgroundColor: (ctx) => {
+          const chart = ctx.chart;
+          const { ctx: c, chartArea: a } = chart;
+          if (!a) return 'rgba(10,132,255,0.1)';
+          const gradient = c.createLinearGradient(0, a.top, 0, a.bottom);
+          gradient.addColorStop(0, 'rgba(10,132,255,0.3)');
+          gradient.addColorStop(1, 'rgba(10,132,255,0.0)');
+          return gradient;
+        },
+        fill: true,
+        tension: mode === 'daily' ? 0.15 : 0.35,
+        borderWidth: 2.5,
+        pointRadius: mode === 'daily' ? 2 : 4,
+        pointHoverRadius: mode === 'daily' ? 5 : 7,
+        pointBackgroundColor: '#0a84ff'
+      });
 
-    const rawLabels = Object.keys(balanceMap).sort();
-    const data      = rawLabels.map(k => balanceMap[k]);
-
-    // Format x-axis labels depending on mode
-    const labels = rawLabels.map(l => {
-      if (mode === 'daily') {
-        const parts = l.split('-');
-        if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0].slice(2)}`;
-      }
-      return l;
-    });
-
-    return create(id, {
-      type: 'line',
-      data: {
-        labels,
-        datasets: [{
-          label: 'Saldo Totale (EUR)',
-          data,
-          borderColor: '#0a84ff',
+      if (balanceData.hasForecast && balanceData.forecastData && balanceData.forecastData.some(v => v !== null)) {
+        datasets.push({
+          label: 'Previsione Saldo (Budget Mesi Futuri)',
+          data: balanceData.forecastData,
+          borderColor: '#ff9f0a',
+          borderDash: [6, 6],
           backgroundColor: (ctx) => {
             const chart = ctx.chart;
             const { ctx: c, chartArea: a } = chart;
-            if (!a) return 'rgba(10,132,255,0.1)';
+            if (!a) return 'rgba(255,159,10,0.05)';
             const gradient = c.createLinearGradient(0, a.top, 0, a.bottom);
-            gradient.addColorStop(0, 'rgba(10,132,255,0.35)');
-            gradient.addColorStop(1, 'rgba(10,132,255,0.0)');
+            gradient.addColorStop(0, 'rgba(255,159,10,0.22)');
+            gradient.addColorStop(1, 'rgba(255,159,10,0.0)');
             return gradient;
           },
           fill: true,
-          tension: mode === 'daily' ? 0.15 : 0.35,
+          tension: 0.35,
+          borderWidth: 2.5,
           pointRadius: mode === 'daily' ? 2 : 4,
           pointHoverRadius: mode === 'daily' ? 5 : 7,
-          pointBackgroundColor: '#0a84ff'
-        }]
-      },
+          pointBackgroundColor: '#ff9f0a'
+        });
+      }
+    } else {
+      // Fallback if raw array passed
+      labels = Array.isArray(balanceData) ? balanceData.map((_, i) => `P${i+1}`) : [];
+      datasets.push({
+        label: 'Saldo Totale (EUR)',
+        data: Array.isArray(balanceData) ? balanceData : [],
+        borderColor: '#0a84ff',
+        fill: true,
+        tension: 0.35,
+        borderWidth: 2.5
+      });
+    }
+
+    return create(id, {
+      type: 'line',
+      data: { labels, datasets },
       options: {
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
-          legend: { display: false },
-          tooltip: { callbacks: { label: ctx => ` Saldo: ${fmt(ctx.raw)}` } }
+          legend: {
+            display: showLegend,
+            position: 'top',
+            labels: { usePointStyle: true, pointStyle: 'circle' }
+          },
+          tooltip: {
+            callbacks: {
+              label: ctx => {
+                if (ctx.raw === null || ctx.raw === undefined) return '';
+                return ` ${ctx.dataset.label}: ${fmt(ctx.raw)}`;
+              }
+            }
+          }
         },
         scales: {
           x: {
@@ -319,5 +349,77 @@ const Charts = (() => {
     });
   }
 
-  return { donut, budgetBar, monthlyTrend, annualStacked, balanceLine, yearComparison, destroy };
+  // ── Forecast Chart — Actual vs Planned Budget & Portfolio Balance ───────────
+  function forecast(id, forecastData) {
+    const { labels, monthlyExpActual, monthlyExpForecast, monthlyBalanceForecast } = forecastData;
+
+    return create(id, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          {
+            type: 'bar',
+            label: 'Spesa Reale (Consuntivo)',
+            data: monthlyExpActual,
+            backgroundColor: 'rgba(255,69,58,0.85)',
+            borderRadius: 6,
+            order: 2
+          },
+          {
+            type: 'bar',
+            label: 'Budget Previsto (Mesi Futuri)',
+            data: monthlyExpForecast,
+            backgroundColor: 'rgba(255,159,10,0.7)',
+            borderRadius: 6,
+            order: 2
+          },
+          {
+            type: 'line',
+            label: 'Previsione Saldo Portafoglio',
+            data: monthlyBalanceForecast,
+            borderColor: '#0a84ff',
+            backgroundColor: 'transparent',
+            tension: 0.35,
+            borderWidth: 2.5,
+            pointRadius: 4,
+            pointBackgroundColor: '#0a84ff',
+            yAxisID: 'y1',
+            order: 1
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'top', labels: { usePointStyle: true, pointStyle: 'circle' } },
+          tooltip: {
+            callbacks: {
+              label: ctx => {
+                if (ctx.raw === null || ctx.raw === undefined) return '';
+                return ` ${ctx.dataset.label}: ${fmt(ctx.raw)}`;
+              }
+            }
+          }
+        },
+        scales: {
+          x: { grid: { display: false } },
+          y: {
+            title: { display: true, text: 'Spese / Budget (€)', font: { size: 11 } },
+            grid: { color: 'rgba(255,255,255,0.06)' },
+            ticks: { callback: v => fmt(v, true) }
+          },
+          y1: {
+            position: 'right',
+            title: { display: true, text: 'Saldo Previsionale (€)', font: { size: 11 } },
+            grid: { display: false },
+            ticks: { callback: v => fmt(v, true) }
+          }
+        }
+      }
+    });
+  }
+
+  return { donut, budgetBar, monthlyTrend, annualStacked, balanceLine, yearComparison, forecast, destroy };
 })();

@@ -20,7 +20,7 @@
   <!-- Lucide Icons -->
   <script src="https://cdn.jsdelivr.net/npm/lucide@0.395.0/dist/umd/lucide.min.js"></script>
 
-  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/styles.css?v=1.0.2">
 </head>
 <body>
 
@@ -93,6 +93,9 @@
       <div class="nav-label">Principale</div>
       <a href="#" class="nav-link active" data-view="dashboard" id="nav-dashboard">
         <span class="nav-icon"><i data-lucide="layout-dashboard" class="lucide-icon"></i></span><span>Dashboard</span>
+      </a>
+      <a href="#" class="nav-link" data-view="budget" id="nav-budget">
+        <span class="nav-icon"><i data-lucide="piggy-bank" class="lucide-icon"></i></span><span>Budget</span>
       </a>
       <a href="#" class="nav-link" data-view="import" id="nav-import">
         <span class="nav-icon"><i data-lucide="file-down" class="lucide-icon"></i></span><span>Importa</span>
@@ -238,6 +241,89 @@
               </thead>
               <tbody id="recent-tx-body">
                 <tr><td colspan="6" class="empty-row">Nessuna transazione questo mese</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ═══════════════════════════════════════════════════ -->
+      <!-- VIEW: BUDGET                                        -->
+      <!-- ═══════════════════════════════════════════════════ -->
+      <section id="view-budget" class="view hidden">
+
+        <!-- Header Controls -->
+        <div class="section-header mb-15" style="flex-wrap:wrap;gap:1rem">
+          <div>
+            <h2 class="section-title">Gestione Budget Mensile</h2>
+            <p class="muted small" style="margin-top:0.2rem">Imposta e gestisci i limiti di spesa mensili per ciascuna categoria</p>
+          </div>
+          <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap">
+            <select id="bg-mode-select" class="select-styled" onchange="switchBgMode(this.value)">
+              <option value="month">Mese Selezionato</option>
+              <option value="default">Predefinito (Baseline)</option>
+            </select>
+            <div id="bg-month-picker" style="display:flex;align-items:center;gap:0.5rem;background:var(--input-bg);padding:0.35rem 0.85rem;border-radius:99px;border:1px solid var(--glass-b)">
+              <button class="btn-icon" onclick="prevBgMonth()" title="Mese precedente"><i data-lucide="chevron-left" class="lucide-icon icon-sm"></i></button>
+              <span id="bg-month-label" style="font-weight:600;font-size:0.9rem;min-width:130px;text-align:center">—</span>
+              <button class="btn-icon" onclick="nextBgMonth()" title="Mese successivo"><i data-lucide="chevron-right" class="lucide-icon icon-sm"></i></button>
+            </div>
+          </div>
+        </div>
+
+        <!-- KPI Cards Summary -->
+        <div class="kpi-grid mb-15">
+          <div class="kpi-card">
+            <span class="kpi-label">Budget Totale Allocato</span>
+            <span class="kpi-value" id="bg-kpi-total">€ 0</span>
+          </div>
+          <div class="kpi-card danger">
+            <span class="kpi-label">Spesa Effettiva Mese</span>
+            <span class="kpi-value negative" id="bg-kpi-actual">€ 0</span>
+          </div>
+          <div class="kpi-card success">
+            <span class="kpi-label">Budget Rimanente</span>
+            <span class="kpi-value" id="bg-kpi-remaining">€ 0</span>
+          </div>
+          <div class="kpi-card warning">
+            <span class="kpi-label">Categorie Over Budget</span>
+            <span class="kpi-value" id="bg-kpi-over">0</span>
+          </div>
+        </div>
+
+        <!-- Budget Action Bar & Table Card -->
+        <div class="card mb-15">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;flex-wrap:wrap;gap:0.75rem">
+            <div>
+              <span class="card-title" style="margin-bottom:0">Dettaglio Categorie & Limiti</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap">
+              <button class="btn btn-secondary btn-sm" id="bg-copy-def-btn" onclick="copyDefaultToCurrentBg()">
+                <i data-lucide="copy" class="lucide-icon icon-sm"></i> Copia da Predefinito
+              </button>
+              <button class="btn btn-secondary btn-sm" id="bg-reset-btn" onclick="resetCurrentBgMonth()">
+                <i data-lucide="rotate-ccw" class="lucide-icon icon-sm"></i> Ripristina Predefinito
+              </button>
+              <button class="btn btn-primary btn-sm" onclick="saveBgViewBudgets()">
+                <i data-lucide="save" class="lucide-icon icon-sm"></i> Salva Budget
+              </button>
+            </div>
+          </div>
+
+          <div style="overflow-x:auto">
+            <table>
+              <thead>
+                <tr>
+                  <th>Categoria</th>
+                  <th style="width:160px">Budget Previsto (€)</th>
+                  <th style="width:140px">Speso Effettivo</th>
+                  <th style="width:140px">Rimanente</th>
+                  <th style="width:200px">Utilizzo %</th>
+                </tr>
+              </thead>
+              <tbody id="bg-table-body">
+                <tr><td colspan="5" class="empty-row">Caricamento budget…</td></tr>
               </tbody>
             </table>
           </div>
@@ -453,6 +539,8 @@
           </div>
         </div>
 
+
+
         <!-- Monthly trend -->
         <div class="chart-card mb-15">
           <h3>Andamento Mensile — Entrate vs Uscite</h3>
@@ -467,8 +555,11 @@
 
         <!-- Balance -->
         <div class="chart-card mb-15">
-          <div style="display:flex;align-items:center;justify-space-between;margin-bottom:1.25rem;flex-wrap:wrap;gap:0.5rem">
-            <h3 style="margin-bottom:0">Evoluzione Saldo (EUR) — tutte le transazioni</h3>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;flex-wrap:wrap;gap:0.5rem">
+            <div>
+              <h3 style="margin-bottom:0.15rem">Evoluzione Saldo (EUR) & Previsione Fine Anno</h3>
+              <span class="muted small">Linea continua blu = Saldo Reale | Linea tratteggiata arancione = Previsione Budget</span>
+            </div>
             <div style="display:flex;gap:0.35rem;margin-left:auto">
               <button class="btn btn-primary btn-sm" id="balance-mode-monthly" onclick="setBalanceMode('monthly')">Mensile</button>
               <button class="btn btn-secondary btn-sm" id="balance-mode-daily" onclick="setBalanceMode('daily')">Giornaliero</button>
@@ -512,20 +603,7 @@
           <!-- LEFT COLUMN -->
           <div>
 
-            <!-- Budget per categoria -->
-            <div class="card settings-section mb-1">
-              <h3>Budget Mensile per Categoria</h3>
-              <div style="overflow-y:auto;max-height:340px">
-                <table class="budget-table">
-                  <tbody id="budget-table-body"></tbody>
-                </table>
-              </div>
-              <div class="mt-1">
-                <button class="btn btn-primary btn-sm" id="save-budget-btn">
-                  <i data-lucide="save" class="lucide-icon icon-sm"></i> Salva Budget
-                </button>
-              </div>
-            </div>
+
 
             <!-- Categories management -->
             <div class="card settings-section">
@@ -621,6 +699,12 @@
                 <div><strong style="font-size:0.875rem">Importa dati</strong><p>Carica un data.json esistente</p></div>
                 <button class="btn btn-secondary btn-sm" id="import-data-btn">
                   <i data-lucide="upload" class="lucide-icon icon-sm"></i> Importa
+                </button>
+              </div>
+              <div class="danger-row">
+                <div><strong style="font-size:0.875rem">Ripristina dati iniziali</strong><p>Ricarica il data.json originale con le 330 transazioni</p></div>
+                <button class="btn btn-secondary btn-sm" id="reload-sample-btn" onclick="reloadSampleData()">
+                  <i data-lucide="rotate-ccw" class="lucide-icon icon-sm"></i> Ripristina
                 </button>
               </div>
               <div class="danger-row">
@@ -748,12 +832,12 @@
 </div>
 
 <!-- Scripts -->
-<script src="js/auth.js"></script>
-<script src="js/data.js"></script>
-<script src="js/import.js"></script>
-<script src="js/charts.js"></script>
-<script src="js/github.js"></script>
-<script src="js/app.js"></script>
+<script src="js/auth.js?v=1.0.4"></script>
+<script src="js/data.js?v=1.0.4"></script>
+<script src="js/import.js?v=1.0.4"></script>
+<script src="js/charts.js?v=1.0.4"></script>
+<script src="js/github.js?v=1.0.4"></script>
+<script src="js/app.js?v=1.0.4"></script>
 
 </body>
 </html>

@@ -30,22 +30,28 @@ const Data = (() => {
 
   async function init() {
     load();
-    // If localStorage has no transactions, fetch data.json from server
-    if (!_data.transactions || _data.transactions.length === 0) {
-      try {
-        const res = await fetch('data.json?v=' + Date.now());
-        if (res.ok) {
-          const json = await res.json();
-          if (json && json.transactions && json.transactions.length > 0) {
-            _data = { ...DEFAULTS, ...json };
-            save();
-          }
-        }
-      } catch(e) {
-        console.warn('Impossibile caricare data.json automaticamente:', e);
-      }
+    // If localStorage has no transactions, auto-load data.json
+    if (!_data || !_data.transactions || _data.transactions.length === 0) {
+      await resetToDefaultData();
     }
     return _data;
+  }
+
+  async function resetToDefaultData() {
+    try {
+      const res = await fetch('data.json?v=' + Date.now());
+      if (res.ok) {
+        const json = await res.json();
+        if (json && json.transactions && json.transactions.length > 0) {
+          _data = { ...DEFAULTS, ...json };
+          save();
+          return true;
+        }
+      }
+    } catch(e) {
+      console.warn('Impossibile caricare data.json automaticamente:', e);
+    }
+    return false;
   }
 
   function save() {
@@ -126,6 +132,19 @@ const Data = (() => {
   function setDefaultBudgets(map) {
     _data.budgets.default = { ...(_data.budgets.default || {}), ...map };
     save();
+  }
+
+  function setMonthBudgets(yearMonth, map) {
+    if (!_data.budgets) _data.budgets = { default: {} };
+    _data.budgets[yearMonth] = { ...(_data.budgets[yearMonth] || {}), ...map };
+    save();
+  }
+
+  function resetMonthBudgets(yearMonth) {
+    if (_data.budgets && _data.budgets[yearMonth]) {
+      delete _data.budgets[yearMonth];
+      save();
+    }
   }
 
   // ── Exchange Rates ────────────────────────────────────────
@@ -210,9 +229,9 @@ const Data = (() => {
   function updateSettings(s) { _data.settings = { ...(_data.settings || {}), ...s }; save(); }
 
   return {
-    init, load, save, get, setData, exportJSON, importJSON, clearAll,
+    init, load, save, get, setData, exportJSON, importJSON, clearAll, resetToDefaultData,
     getTransactions, addTransactions, updateTransaction, deleteTransaction,
-    getAllBudgets, setDefaultBudget, setDefaultBudgets,
+    getAllBudgets, setDefaultBudget, setDefaultBudgets, setMonthBudgets, resetMonthBudgets,
     addExchangeRates, getExchangeRates, getWeightedAverageRate,
     getCategories, addCategory, deleteCategory,
     getMonthlyTotals, getCategoryTotals, getAnnualCategoryTotals,
