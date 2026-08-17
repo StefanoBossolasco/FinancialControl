@@ -82,54 +82,81 @@ const Import = (() => {
     return h.toString(36);
   }
 
+  // Helper to extract value by multiple possible header names (case & BOM insensitive)
+  function getRowVal(row, ...possibleKeys) {
+    if (!row) return undefined;
+    for (const key of possibleKeys) {
+      const target = key.toLowerCase();
+      for (const k of Object.keys(row)) {
+        const cleanK = k.replace(/^\ufeff/, '').trim().toLowerCase();
+        if (cleanK === target) {
+          return row[k];
+        }
+      }
+    }
+    return undefined;
+  }
+
   // ── Parse Revolut CSV ─────────────────────────────────────
-  // currency: 'EUR' or 'USD'
   function parseRevolutCSV(csvText, currency) {
-    const { data } = Papa.parse(csvText.trim(), { header: true, skipEmptyLines: true });
+    const cleanText = (csvText || '').replace(/^\ufeff/, '').trim();
+    const { data } = Papa.parse(cleanText, { header: true, skipEmptyLines: true });
     const transactions = [];
-    const exchanges    = []; // Exchange-type rows (for rate calculation)
+    const exchanges    = [];
 
     data.forEach(row => {
-      if (!['COMPLETED','PENDING'].includes(row.State)) return;
-      const amount = parseFloat(row.Amount);
-      const dateRaw = (row['Started Date'] || '').split(' ')[0];
+      const stateVal = (getRowVal(row, 'State', 'Stato', 'Status') || '').toString().trim().toUpperCase();
+      // If state column is present, check validity; if missing, assume completed
+      if (stateVal && !['COMPLETED', 'PENDING', 'COMPLETATA', 'IN SOSPESO', 'ESEGUITO', 'RECORDED'].includes(stateVal)) {
+        return;
+      }
+
+      const rawAmountStr = (getRowVal(row, 'Amount', 'Importo', 'Value') || '').toString().replace(/\s/g, '').replace(',', '.');
+      const amount = parseFloat(rawAmountStr);
+
+      const rawDateStr = (getRowVal(row, 'Started Date', 'Date', 'Data inizio', 'Data', 'Started_Date') || '').toString().trim();
+      const dateRaw = rawDateStr.split(' ')[0];
       if (!dateRaw || isNaN(amount)) return;
 
       const dateObj = new Date(dateRaw);
-      if (isNaN(dateObj)) return;
+      if (isNaN(dateObj.getTime())) return;
       const year  = dateObj.getFullYear();
       const month = `${year}-${String(dateObj.getMonth() + 1).padStart(2,'0')}`;
 
+      const description = (getRowVal(row, 'Description', 'Descrizione', 'Details') || '').toString().substring(0, 120);
+      const rowCurrency = (getRowVal(row, 'Currency', 'Valuta') || currency).toString().trim().toUpperCase();
+      const type        = (getRowVal(row, 'Type', 'Tipo') || '').toString().trim();
+      const balance     = parseFloat((getRowVal(row, 'Balance', 'Saldo') || '0').toString().replace(',', '.')) || 0;
+
       const tx = {
-        id:          genId(dateRaw, amount, row.Description),
+        id:          genId(dateRaw, amount, description),
         date:        dateRaw,
         month,
         year,
-        description: (row.Description || '').substring(0, 120),
+        description,
         amount,
-        currency:    row.Currency || currency,
-        amountEUR:   currency === 'EUR' ? amount : null,
+        currency:    rowCurrency,
+        amountEUR:   rowCurrency === 'EUR' ? amount : (currency === 'EUR' ? amount : null),
         category:    null,
-        source:      currency === 'EUR' ? 'revolut_eur' : 'revolut_usd',
-        type:        row.Type || '',
-        balance:     parseFloat(row.Balance) || 0,
+        source:      rowCurrency === 'EUR' ? 'revolut_eur' : 'revolut_usd',
+        type,
+        balance,
         importedAt:  new Date().toISOString(),
         notes:       ''
       };
 
-      if (row.Type === 'Exchange') {
+      if (type.toLowerCase() === 'exchange' || description.toLowerCase().includes('exchanged to') || description.toLowerCase().includes('cambio')) {
         exchanges.push(tx);
-        // Exchange rows are not expense/income — skip categorisation
         tx.category = '__exchange__';
         transactions.push(tx);
         return;
       }
 
       // Categorise
-      if (row.Type === 'Transfer' && amount < 0) tx.category = 'Trasferimenti';
-      else if (row.Type === 'Transfer' && amount > 0) tx.category = 'Entrate';
+      if (type.toLowerCase() === 'transfer' && amount < 0) tx.category = 'Trasferimenti';
+      else if (type.toLowerCase() === 'transfer' && amount > 0) tx.category = 'Entrate';
       else if (amount > 0) tx.category = 'Entrate';
-      else tx.category = suggestCategory(row.Description);
+      else tx.category = suggestCategory(description);
 
       transactions.push(tx);
     });
@@ -148,16 +175,45 @@ const Import = (() => {
 
     for (let i = 0; i < rows.length; i++) {
       const r = rows[i];
-      if (r && String(r[0]).trim() === 'Data') { headerIdx = i; break; }
+      if (r && Array.isArray(r)) {
+        const rowStr = r.map(c => String(c).trim().toLowerCase()).join(' ');
+        if (rowStr.includes('data') && (rowStr.includes('importo') || rowStr.includes('descrizione') || rowStr.includes('operazione') || rowStr.includes('categoria'))) {
+          headerIdx = i;
+          break;
+        }
+      }
     }
-    if (headerIdx < 0) throw new Error('Header "Data" non trovato nel file Intesa.');
+    // Fallback: search for any row containing 'data' in column 0 or 1
+    if (headerIdx < 0) {
+      for (let i = 0; i < rows.length; i++) {
+        const r = rows[i];
+        if (r && (String(r[0]).trim().toLowerCase().startsWith('data') || String(r[1]).trim().toLowerCase().startsWith('data'))) {
+          headerIdx = i;
+          break;
+        }
+      }
+    }
+
+    if (headerIdx < 0) throw new Error('Intestazione della tabella ("Data", "Importo", etc.) non trovata nel file Intesa.');
+
+    // Determine column mapping dynamically from header
+    const header = rows[headerIdx].map(c => String(c).trim().toLowerCase());
+    let dateCol = header.findIndex(c => c.startsWith('data'));
+    let descCol = header.findIndex(c => c.includes('descrizione') || c.includes('causale') || c.includes('operazione'));
+    let catCol  = header.findIndex(c => c.includes('categoria'));
+    let amtCol  = header.findIndex(c => c.includes('importo') || c.includes('entrate') || c.includes('uscite'));
+
+    if (dateCol < 0) dateCol = 0;
+    if (descCol < 0) descCol = 1;
+    if (catCol < 0)  catCol = 5;
+    if (amtCol < 0)  amtCol = 7;
 
     for (let i = headerIdx + 1; i < rows.length; i++) {
       const r = rows[i];
-      if (!r[0] && !r[7]) continue;
+      if (!r || (!r[dateCol] && !r[amtCol])) continue;
 
-      let dateStr = r[0];
-      const rawAmount = String(r[7] || '').replace(/\./g,'').replace(',','.');
+      let dateStr = r[dateCol];
+      const rawAmount = String(r[amtCol] || '').replace(/\./g,'').replace(',','.');
       const amount = parseFloat(rawAmount);
       if (isNaN(amount)) continue;
 
@@ -166,15 +222,21 @@ const Import = (() => {
       if (dateStr instanceof Date) {
         date = dateStr.toISOString().split('T')[0];
       } else {
-        const parts = String(dateStr).split('/');
-        date = parts.length === 3 ? `${parts[2]}-${parts[1]}-${parts[0]}` : String(dateStr);
+        const parts = String(dateStr).trim().split(/[\/\-\.]/);
+        if (parts.length === 3) {
+          if (parts[0].length === 4) date = `${parts[0]}-${parts[1].padStart(2,'0')}-${parts[2].padStart(2,'0')}`;
+          else date = `${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`;
+        } else {
+          date = String(dateStr);
+        }
       }
       const d = new Date(date);
-      if (isNaN(d)) continue;
+      if (isNaN(d.getTime())) continue;
 
       const year  = d.getFullYear();
       const month = `${year}-${String(d.getMonth() + 1).padStart(2,'0')}`;
-      const description = String(r[1] || '').substring(0, 120);
+      const description = String(r[descCol] || '').substring(0, 120);
+      const rawCat = r[catCol] ? String(r[catCol]) : '';
 
       transactions.push({
         id:          genId(date, amount, description),
@@ -185,9 +247,9 @@ const Import = (() => {
         amount,
         currency:    'EUR',
         amountEUR:   amount,
-        category:    mapIntesaCategory(r[5]),
+        category:    mapIntesaCategory(rawCat),
         source:      'intesa',
-        type:        String(r[1] || '').substring(0, 50),
+        type:        description.substring(0, 50),
         balance:     0,
         importedAt:  new Date().toISOString(),
         notes:       ''
@@ -197,59 +259,45 @@ const Import = (() => {
   }
 
   // ── Exchange rate matching ────────────────────────────────
-  // eurExchanges: rows from EUR file with amount < 0  (EUR spent buying USD)
-  // usdExchanges: rows from USD file with amount > 0  (USD received)
-  function matchExchangeRates(eurExchanges, usdExchanges) {
-    const eurSold    = eurExchanges.filter(t => t.amount < 0);
-    const usdBought  = usdExchanges.filter(t => t.amount > 0);
-    const TOLERANCE  = 24 * 60 * 60 * 1000; // match within same day
+  function matchExchanges(eurExchanges, usdExchanges) {
+    if (!eurExchanges.length || !usdExchanges.length) return null;
 
     const pairs = [];
-    const usedUsd = new Set();
+    let totalEur = 0;
+    let totalUsd = 0;
 
-    eurSold.forEach(e => {
-      const eDate = new Date(e.date).getTime();
-      const match = usdBought.find(u => {
-        if (usedUsd.has(u.id)) return false;
-        return Math.abs(new Date(u.date).getTime() - eDate) <= TOLERANCE;
+    eurExchanges.forEach(eurTx => {
+      if (eurTx.amount >= 0) return; // Spent EUR to buy USD
+      const eurSpent = Math.abs(eurTx.amount);
+
+      const usdMatch = usdExchanges.find(u => {
+        if (u.amount <= 0) return false;
+        const dDiff = Math.abs(new Date(u.date) - new Date(eurTx.date));
+        return dDiff <= 2 * 86400000;
       });
-      if (match) {
-        usedUsd.add(match.id);
-        pairs.push({
-          date:        e.date,
-          eurSpent:    Math.abs(e.amount),
-          usdReceived: match.amount,
-          rate:        match.amount / Math.abs(e.amount)
-        });
+
+      if (usdMatch) {
+        const usdRecv = usdMatch.amount;
+        const rate    = usdRecv / eurSpent;
+        pairs.push({ date: eurTx.date, eur: eurSpent, usd: usdRecv, rate });
+        totalEur += eurSpent;
+        totalUsd += usdRecv;
       }
     });
-    return pairs;
+
+    if (!pairs.length || totalEur === 0) return null;
+    const avgRate = totalUsd / totalEur;
+    return { rate: avgRate, totalEur, totalUsd, pairs };
   }
 
-  // Weighted average: total USD received / total EUR spent
-  function calculateWeightedRate(pairs) {
-    if (!pairs.length) return null;
-    const totalEur = pairs.reduce((s, p) => s + p.eurSpent, 0);
-    const totalUsd = pairs.reduce((s, p) => s + p.usdReceived, 0);
-    return { rate: totalUsd / totalEur, totalEur, totalUsd, pairs };
-  }
-
-  // Apply EUR conversion to all USD transactions
-  function applyEURConversion(transactions, usdPerEur) {
-    return transactions.map(t => {
+  function applyEURConversion(txs, rate) {
+    return txs.map(t => {
       if (t.currency === 'USD' && t.amountEUR === null) {
-        t.amountEUR = parseFloat((t.amount / usdPerEur).toFixed(2));
+        return { ...t, amountEUR: parseFloat((t.amount / rate).toFixed(2)) };
       }
       return t;
     });
   }
 
-  return {
-    parseRevolutCSV,
-    parseIntesaXLSX,
-    matchExchangeRates,
-    calculateWeightedRate,
-    applyEURConversion,
-    suggestCategory
-  };
+  return { parseRevolutCSV, parseIntesaXLSX, matchExchanges, applyEURConversion, suggestCategory };
 })();

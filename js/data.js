@@ -160,12 +160,13 @@ const Data = (() => {
   // ── Analytics helpers ─────────────────────────────────────
   function getMonthlyTotals(year) {
     const months = {};
+    const yr = parseInt(year);
     for (let m = 1; m <= 12; m++) {
-      const k = `${year}-${String(m).padStart(2,'0')}`;
+      const k = `${yr}-${String(m).padStart(2,'0')}`;
       months[k] = { income: 0, expenses: 0, net: 0 };
     }
     _data.transactions
-      .filter(t => t.year === year)
+      .filter(t => t.year === yr && t.category !== '__exchange__')
       .forEach(t => {
         const k = t.month;
         if (!months[k]) months[k] = { income: 0, expenses: 0, net: 0 };
@@ -179,15 +180,16 @@ const Data = (() => {
   function getCategoryTotals(yearMonth) {
     const totals = {};
     _data.transactions
-      .filter(t => t.month === yearMonth && t.amountEUR < 0)
+      .filter(t => t.month === yearMonth && t.category !== '__exchange__' && t.amountEUR < 0)
       .forEach(t => { totals[t.category] = (totals[t.category] || 0) + Math.abs(t.amountEUR); });
     return totals;
   }
 
   function getAnnualCategoryTotals(year) {
     const totals = {};
+    const yr = parseInt(year);
     _data.transactions
-      .filter(t => t.year === year && t.amountEUR < 0)
+      .filter(t => t.year === yr && t.category !== '__exchange__' && t.amountEUR < 0)
       .forEach(t => { totals[t.category] = (totals[t.category] || 0) + Math.abs(t.amountEUR); });
     return totals;
   }

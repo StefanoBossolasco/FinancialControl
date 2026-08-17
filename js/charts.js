@@ -106,10 +106,16 @@ const Charts = (() => {
   }
 
   // ── Monthly trend bar — Income vs Expenses ─────────────────
-  function monthlyTrend(id, monthlyData) {
+  function monthlyTrend(id, year, monthlyData) {
     const labels   = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    const expData  = labels.map((_, i) => monthlyData[i+1]?.exp || 0);
-    const incData  = labels.map((_, i) => monthlyData[i+1]?.inc || 0);
+    const expData  = labels.map((_, i) => {
+      const k = `${year}-${String(i+1).padStart(2,'0')}`;
+      return monthlyData[k]?.expenses || monthlyData[i+1]?.expenses || monthlyData[i+1]?.exp || 0;
+    });
+    const incData  = labels.map((_, i) => {
+      const k = `${year}-${String(i+1).padStart(2,'0')}`;
+      return monthlyData[k]?.income || monthlyData[i+1]?.income || monthlyData[i+1]?.inc || 0;
+    });
 
     return create(id, {
       type: 'bar',
@@ -140,7 +146,7 @@ const Charts = (() => {
     const labels = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
     const catMap = {};
 
-    txs.filter(t => t.amountEUR < 0).forEach(t => {
+    txs.filter(t => t.category !== '__exchange__' && t.amountEUR < 0).forEach(t => {
       const m = new Date(t.date).getMonth(); // 0-11
       const c = t.category || 'Altro';
       if (!catMap[c]) catMap[c] = new Array(12).fill(0);
@@ -174,7 +180,9 @@ const Charts = (() => {
 
   // ── Balance line — Total account evolution ────────────────
   function balanceLine(id, allTxs, initialBalance = 0) {
-    const sorted = [...allTxs].sort((a,b) => new Date(a.date) - new Date(b.date));
+    const sorted = [...allTxs]
+      .filter(t => t.category !== '__exchange__')
+      .sort((a,b) => new Date(a.date) - new Date(b.date));
 
     // Group by month
     const monthBalance = {};
@@ -232,7 +240,10 @@ const Charts = (() => {
     const labels = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
     const datasets = Object.entries(yearsData).map(([yr, mData], i) => ({
       label: yr,
-      data: labels.map((_, idx) => mData[idx+1]?.exp || 0),
+      data: labels.map((_, idx) => {
+        const k = `${yr}-${String(idx+1).padStart(2,'0')}`;
+        return mData[k]?.expenses || mData[idx+1]?.expenses || mData[idx+1]?.exp || 0;
+      }),
       borderColor: PALETTE[i % PALETTE.length],
       backgroundColor: 'transparent',
       tension: 0.35,

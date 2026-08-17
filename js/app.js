@@ -260,14 +260,22 @@ function setupDropzone(id, handler) {
   zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
   zone.addEventListener('drop', e => {
     e.preventDefault(); zone.classList.remove('drag-over');
-    const file = e.dataTransfer.files[0];
+    const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
     if (file) handler(file, zone);
   });
-  zone.addEventListener('click', () => {
+  zone.addEventListener('click', e => {
+    if (e.target && e.target.tagName === 'INPUT') return;
     const inp = document.createElement('input');
     inp.type = 'file';
-    inp.accept = id.includes('intesa') ? '.xlsx' : '.csv';
-    inp.onchange = () => inp.files[0] && handler(inp.files[0], zone);
+    inp.accept = id.includes('intesa') ? '.xlsx,.xls' : '.csv';
+    inp.style.display = 'none';
+    document.body.appendChild(inp);
+    inp.onchange = () => {
+      if (inp.files && inp.files[0]) {
+        handler(inp.files[0], zone);
+      }
+      document.body.removeChild(inp);
+    };
     inp.click();
   });
 }
@@ -284,6 +292,10 @@ function handleRevolutEUR(file, zone) {
   reader.onload = e => {
     try {
       S.imp.eurParsed = Import.parseRevolutCSV(e.target.result, 'EUR');
+      if (!S.imp.eurParsed || !S.imp.eurParsed.transactions.length) {
+        showToast('Nessuna transazione valida trovata in ' + file.name, 'warning');
+        return;
+      }
       markDropzone(zone, file.name);
       showToast(`Revolut EUR: ${S.imp.eurParsed.transactions.length} righe caricate`, 'success');
     } catch (err) { showToast('Errore nel file Revolut EUR: ' + err.message, 'error'); }
@@ -296,6 +308,10 @@ function handleRevolutUSD(file, zone) {
   reader.onload = e => {
     try {
       S.imp.usdParsed = Import.parseRevolutCSV(e.target.result, 'USD');
+      if (!S.imp.usdParsed || !S.imp.usdParsed.transactions.length) {
+        showToast('Nessuna transazione valida trovata in ' + file.name, 'warning');
+        return;
+      }
       markDropzone(zone, file.name);
       showToast(`Revolut USD: ${S.imp.usdParsed.transactions.length} righe caricate`, 'success');
     } catch (err) { showToast('Errore nel file Revolut USD: ' + err.message, 'error'); }
@@ -308,6 +324,10 @@ function handleIntesa(file, zone) {
   reader.onload = e => {
     try {
       S.imp.intesaTxs = Import.parseIntesaXLSX(e.target.result);
+      if (!S.imp.intesaTxs || !S.imp.intesaTxs.length) {
+        showToast('Nessuna transazione valida trovata in ' + file.name, 'warning');
+        return;
+      }
       markDropzone(zone, file.name);
       showToast(`Intesa: ${S.imp.intesaTxs.length} righe caricate`, 'success');
     } catch (err) { showToast('Errore nel file Intesa: ' + err.message, 'error'); }
@@ -321,11 +341,10 @@ function processImportFiles() {
 
   // If both EUR and USD Revolut → calculate exchange rates
   if (S.imp.eurParsed && S.imp.usdParsed) {
-    const pairs = Import.matchExchangeRates(
+    exchangeInfo = Import.matchExchanges(
       S.imp.eurParsed.exchanges,
       S.imp.usdParsed.exchanges
     );
-    exchangeInfo = Import.calculateWeightedRate(pairs);
     S.imp.exchangeInfo = exchangeInfo;
   }
 
@@ -356,7 +375,8 @@ function processImportFiles() {
 
   if (!rate && merged.some(t => t.currency === 'USD')) {
     // No rate available — ask for manual rate
-    el('manual-rate-row').classList.remove('hidden');
+    const row = el('manual-rate-row');
+    if (row) row.classList.remove('hidden');
     showToast('Nessun tasso USD/EUR trovato: inseriscilo manualmente', 'warning');
   }
 
@@ -366,7 +386,7 @@ function processImportFiles() {
 function buildImportReviewTable() {
   const merged = S.imp.merged.length ? S.imp.merged : processImportFiles();
   if (!merged.length) {
-    set('import-review-wrap', '<div class="empty-state">Nessun file caricato. Torna allo step 1.</div>');
+    set('imp-table-body', '<tr><td colspan="7" class="empty-row">Nessun file caricato o nessuna transazione trovata. Torna allo step 1.</td></tr>');
     return;
   }
 
@@ -713,7 +733,7 @@ function renderAnalytics() {
   `);
 
   const allTxs   = Data.getTransactions({});
-  const yearTxs  = Data.getTransactions({ year: selYear });
+  const yearTxs  = Data.getTransactions({ year: selYear }).filter(t => t.category !== '__exchange__');
   const monthly  = Data.getMonthlyTotals(selYear);
 
   // Annual KPIs
@@ -726,7 +746,7 @@ function renderAnalytics() {
   el('an-total-net').className = `kpi-value ${yearNet >= 0 ? 'positive' : 'negative'}`;
 
   // Charts
-  Charts.monthlyTrend('chart-trend', monthly);
+  Charts.monthlyTrend('chart-trend', selYear, monthly);
   Charts.annualStacked('chart-annual', selYear, yearTxs);
 
   // Year comparison
@@ -1122,8 +1142,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Import — step controls
   el('imp-next-1')?.addEventListener('click', () => {
-    if (!S.imp.eurParsed && !S.imp.usdParsed && !S.imp.intesaTxs) {
-      showToast('Carica almeno un file', 'warning'); return;
+    const hasEur = S.imp.eurParsed && S.imp.eurParsed.transactions && S.imp.eurParsed.transactions.length > 0;
+    const hasUsd = S.imp.usdParsed && S.imp.usdParsed.transactions && S.imp.usdParsed.transactions.length > 0;
+    const hasInt = S.imp.intesaTxs && S.imp.intesaTxs.length > 0;
+    if (!hasEur && !hasUsd && !hasInt) {
+      showToast('Carica almeno un file valido prima di proseguire', 'warning'); return;
     }
     showImportStep(2);
   });
