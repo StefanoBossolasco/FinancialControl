@@ -65,4 +65,5 @@ struct ExchangeRate: Codable, Identifiable, Hashable {
 // MARK: - App Settings
 struct AppSettings: Codable, Hashable {
     var initialBalance: Double?
+    var currency: String?
 }
