@@ -85,6 +85,10 @@ class FinancialViewModel: ObservableObject {
     func loadInitialData() {
         // Auth listener handles loading — nothing to do here manually
     }
+    
+    func syncData() async {
+        // No-op for real-time Firebase DB
+    }
 
     private func loadUserData(uid: String) async {
         isLoading = true
