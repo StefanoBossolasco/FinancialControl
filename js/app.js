@@ -964,13 +964,13 @@ function prepareBalanceForecastData(year, mode = 'monthly') {
           forecastData[forecastData.length - 1] = parseFloat(lastRealVal.toFixed(2));
         }
         const monthBudgets = Data.getAllBudgets(k);
-        const plannedExpenses = Object.values(monthBudgets)
-          .filter((v, i) => {
-            const cat = Object.keys(monthBudgets)[i];
-            return cat !== 'Entrate' && cat !== 'Trasferimenti';
-          })
-          .reduce((s, v) => s + v, 0);
-        const projectedNet = avgIncome - plannedExpenses;
+        const plannedExpenses = Object.entries(monthBudgets)
+          .filter(([cat, v]) => cat !== 'Entrate' && cat !== 'Trasferimenti' && cat !== '__exchange__')
+          .reduce((s, [cat, v]) => s + v, 0);
+          
+        const budgetedIncome = monthBudgets['Entrate'] || avgIncome;
+        const projectedNet = budgetedIncome - plannedExpenses;
+        
         currentBalance += projectedNet;
         forecastData.push(parseFloat(currentBalance.toFixed(2)));
       }
@@ -1014,8 +1014,13 @@ function prepareBalanceForecastData(year, mode = 'monthly') {
         forecastData[forecastData.length - 1] = parseFloat(lastRealVal.toFixed(2));
       }
       const monthBudgets = Data.getAllBudgets(k);
-      const plannedExpenses = Object.values(monthBudgets).reduce((s, v) => s + v, 0);
-      const projectedNet = avgIncome - plannedExpenses;
+      const plannedExpenses = Object.entries(monthBudgets)
+        .filter(([cat, v]) => cat !== 'Entrate' && cat !== 'Trasferimenti' && cat !== '__exchange__')
+        .reduce((s, [cat, v]) => s + v, 0);
+        
+      const budgetedIncome = monthBudgets['Entrate'] || avgIncome;
+      const projectedNet = budgetedIncome - plannedExpenses;
+      
       currentBalance += projectedNet;
       forecastData.push(parseFloat(currentBalance.toFixed(2)));
     }
