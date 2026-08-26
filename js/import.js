@@ -168,7 +168,7 @@ const Import = (() => {
   function parseIntesaXLSX(arrayBuffer) {
     const wb = XLSX.read(arrayBuffer, { type: 'array', cellDates: true });
     const ws = wb.Sheets[wb.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' });
+    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: '' }); // raw: true is critical for correct Dates and Numbers
 
     const transactions = [];
     let headerIdx = -1;
@@ -230,17 +230,26 @@ const Import = (() => {
 
     for (let i = headerIdx + 1; i < rows.length; i++) {
       const r = rows[i];
-      if (!r || (!r[dateCol] && !r[amtCol])) continue;
+      if (!r || (r[dateCol] === '' && r[amtCol] === '')) continue;
 
       let dateStr = r[dateCol];
-      const rawAmount = String(r[amtCol] || '').replace(/\./g,'').replace(',','.');
-      const amount = parseFloat(rawAmount);
+      
+      // Parse amount properly
+      let amount = 0;
+      if (typeof r[amtCol] === 'number') {
+        amount = r[amtCol];
+      } else {
+        const rawAmount = String(r[amtCol] || '').replace(/\./g,'').replace(',','.');
+        amount = parseFloat(rawAmount);
+      }
       if (isNaN(amount)) continue;
 
       // Normalise date
       let date;
       if (dateStr instanceof Date) {
-        date = dateStr.toISOString().split('T')[0];
+        // Fix timezone offset issue which might shift date to previous day
+        const tzOffsetMs = dateStr.getTimezoneOffset() * 60000;
+        date = new Date(dateStr.getTime() - tzOffsetMs).toISOString().split('T')[0];
       } else {
         const parts = String(dateStr).trim().split(/[\/\-\.]/);
         if (parts.length === 3) {
