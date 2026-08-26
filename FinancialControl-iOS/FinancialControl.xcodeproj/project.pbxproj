@@ -25,6 +25,9 @@
 		5A22FE84303F5780005EBC22 /* FirebaseAuthCombine-Community in Frameworks */ = {isa = PBXBuildFile; productRef = 5A22FE83303F5780005EBC22 /* FirebaseAuthCombine-Community */; };
 		5A22FE86303F5780005EBC22 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = 5A22FE85303F5780005EBC22 /* FirebaseFirestore */; };
 		5A22FE88303F5780005EBC22 /* FirebaseFirestoreCombine-Community in Frameworks */ = {isa = PBXBuildFile; productRef = 5A22FE87303F5780005EBC22 /* FirebaseFirestoreCombine-Community */; };
+		1001000F29F1A00000000001 /* Services/FirebaseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2001000F29F1A00000000001 /* Services/FirebaseService.swift */; };
+		1001001029F1A00000000001 /* Views/LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2001001029F1A00000000001 /* Views/LoginView.swift */; };
+		1001001129F1A00000000001 /* Views/RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2001001129F1A00000000001 /* Views/RootView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -43,6 +46,9 @@
 		2001000C29F1A00000000001 /* Views/SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/SettingsView.swift; sourceTree = "<group>"; };
 		2001000D29F1A00000000001 /* Views/ImportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/ImportView.swift; sourceTree = "<group>"; };
 		2001000E29F1A00000000001 /* Services/GoogleDriveService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/GoogleDriveService.swift; sourceTree = "<group>"; };
+		2001000F29F1A00000000001 /* Services/FirebaseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/FirebaseService.swift; sourceTree = "<group>"; };
+		2001001029F1A00000000001 /* Views/LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/LoginView.swift; sourceTree = "<group>"; };
+		2001001129F1A00000000001 /* Views/RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/RootView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -85,6 +91,9 @@
 				2001000B29F1A00000000001 /* Views/AddExpenseSheet.swift */,
 				2001000C29F1A00000000001 /* Views/SettingsView.swift */,
 				2001000D29F1A00000000001 /* Views/ImportView.swift */,
+				2001000F29F1A00000000001 /* Services/FirebaseService.swift */,
+				2001001029F1A00000000001 /* Views/LoginView.swift */,
+				2001001129F1A00000000001 /* Views/RootView.swift */,
 			);
 			path = FinancialControl;
 			sourceTree = "<group>";
@@ -171,6 +180,9 @@
 				1001000B29F1A00000000001 /* Views/AddExpenseSheet.swift in Sources */,
 				1001000C29F1A00000000001 /* Views/SettingsView.swift in Sources */,
 				1001000D29F1A00000000001 /* Views/ImportView.swift in Sources */,
+				1001000F29F1A00000000001 /* Services/FirebaseService.swift in Sources */,
+				1001001029F1A00000000001 /* Views/LoginView.swift in Sources */,
+				1001001129F1A00000000001 /* Views/RootView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
