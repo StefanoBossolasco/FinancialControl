@@ -568,24 +568,16 @@ async function confirmImport(onlyNew = false) {
   }
   if (!toSave.length) { showToast('Nessuna transazione valida da importare', 'warning'); return; }
 
-  const added = Data.addTransactions(toSave);
+  showToast('Salvataggio su Firebase…', 'info');
+  const added = await Data.addTransactions(toSave);
 
   // Save exchange rates
   if (S.imp.exchangeInfo?.pairs?.length) {
-    Data.addExchangeRates(S.imp.exchangeInfo.pairs);
+    await Data.addExchangeRates(S.imp.exchangeInfo.pairs);
   }
 
-  showToast(`${added} transazioni importate con successo!`, 'success');
+  showToast(`${added} transazioni salvate su Firebase!`, 'success');
   resetImport();
-
-  // Sync to GitHub if configured
-  if (GitHub.isConfigured()) {
-    try {
-      await GitHub.push(Data.get());
-      showToast('Dati sincronizzati su GitHub', 'success');
-    } catch (e) { showToast('Sincronizzazione GitHub fallita: ' + e.message, 'error'); }
-  }
-
   navigate('dashboard');
 }
 
@@ -622,15 +614,15 @@ function renderTransactions() {
   setText('tx-count', `${total} transazioni`);
 }
 
-function updateTxCategory(id, cat) {
-  Data.updateTransaction(id, { category: cat });
+async function updateTxCategory(id, cat) {
+  await Data.updateTransaction(id, { category: cat });
   if (S.view === 'dashboard') renderDashboard();
   else if (S.view === 'transactions') renderTransactions();
 }
 
-function deleteTx(id) {
+async function deleteTx(id) {
   if (!confirm('Eliminare questa transazione?')) return;
-  Data.deleteTransaction(id);
+  await Data.deleteTransaction(id);
   if (S.view === 'dashboard') renderDashboard();
   else if (S.view === 'transactions') renderTransactions();
   showToast('Transazione eliminata', 'info');
@@ -713,24 +705,13 @@ async function handleSaveSingleExpense(e) {
     notes
   };
 
-  Data.addTransactions([newTx]);
+  await Data.addTransactions([newTx]);
   closeAddExpenseModal();
-  showToast('Spesa aggiunta con successo!', 'success');
+  showToast('Spesa salvata su Firebase!', 'success');
 
-  // Update view month if adding expense for a different month
   S.year = year;
   S.month = parseInt(dateStr.substring(5, 7));
-
   navigate(S.view);
-
-  if (GitHub.isConfigured()) {
-    try {
-      await GitHub.push(Data.get());
-      showToast('Sincronizzato su GitHub', 'success');
-    } catch (err) {
-      showToast('Sync GitHub fallito: ' + err.message, 'error');
-    }
-  }
 }
 
 // ── NOTE MODAL ────────────────────────────────────────────────
@@ -755,18 +736,10 @@ async function handleSaveNote(e) {
   const id    = el('note-tx-id').value;
   const notes = el('note-text').value.trim();
 
-  Data.updateTransaction(id, { notes });
+  await Data.updateTransaction(id, { notes });
   closeNoteModal();
   showToast('Nota salvata!', 'success');
   navigate(S.view);
-
-  if (GitHub.isConfigured()) {
-    try {
-      await GitHub.push(Data.get());
-    } catch (err) {
-      console.warn('Sync failed:', err);
-    }
-  }
 }
 
 
@@ -821,7 +794,7 @@ async function handleEditTx(e) {
   const year  = parseInt(dateStr.substring(0, 4));
   const month = dateStr.substring(0, 7);
 
-  Data.updateTransaction(id, {
+  await Data.updateTransaction(id, {
     date: dateStr,
     month,
     year,
@@ -836,24 +809,11 @@ async function handleEditTx(e) {
   });
 
   closeEditTxModal();
-  showToast('Transazione modificata con successo!', 'success');
+  showToast('Transazione modificata!', 'success');
 
-  // Update view month if editing for a different month
   S.year = year;
   S.month = parseInt(dateStr.substring(5, 7));
-
   navigate(S.view);
-
-  if (GitHub.isConfigured()) {
-    try {
-      await GitHub.push(Data.get());
-    } catch (err) {}
-  }
-  if (GoogleDrive.isConfigured()) {
-    try {
-      await GoogleDrive.push(Data.get());
-    } catch (err) {}
-  }
 }
 
 function txPage(p) { S.txFilter.page = p; renderTransactions(); }
@@ -1282,11 +1242,11 @@ function copyDefaultToCurrentBg() {
   showToast('Budget predefinito inserito nelle caselle', 'info');
 }
 
-function resetCurrentBgMonth() {
+async function resetCurrentBgMonth() {
   const bgState = S.bgView || { mode: 'month', year: S.year, month: S.month };
   const ym = `${bgState.year}-${String(bgState.month).padStart(2,'0')}`;
   if (!confirm(`Ripristinare il budget di ${monthLabel(bgState.year, bgState.month)} ai valori predefiniti?`)) return;
-  Data.resetMonthBudgets(ym);
+  await Data.resetMonthBudgets(ym);
   renderBudgetView();
   showToast('Budget mese ripristinato al predefinito', 'info');
 }
@@ -1303,16 +1263,11 @@ async function saveBgViewBudgets() {
   const ym = `${bgState.year}-${String(bgState.month).padStart(2,'0')}`;
 
   if (bgState.mode === 'default') {
-    Data.setDefaultBudgets(map);
-    showToast('Budget predefinito salvato!', 'success');
+    await Data.setDefaultBudgets(map);
+    showToast('Budget predefinito salvato su Firebase!', 'success');
   } else {
-    Data.setMonthBudgets(ym, map);
-    showToast(`Budget per ${monthLabel(bgState.year, bgState.month)} salvato!`, 'success');
-  }
-
-  if (GitHub.isConfigured()) {
-    try { await GitHub.push(Data.get()); showToast('Sincronizzato su GitHub','success'); }
-    catch(e) { showToast('Sync GitHub fallito: '+e.message,'error'); }
+    await Data.setMonthBudgets(ym, map);
+    showToast(`Budget per ${monthLabel(bgState.year, bgState.month)} salvato su Firebase!`, 'success');
   }
 }
 
@@ -1344,18 +1299,18 @@ function renderSettings() {
 
 
 
-function addCategory() {
+async function addCategory() {
   const name = el('new-cat-input').value.trim();
   if (!name) { showToast('Inserisci un nome valido','warning'); return; }
-  Data.addCategory(name);
+  await Data.addCategory(name);
   el('new-cat-input').value = '';
   renderSettings();
   showToast(`Categoria "${name}" aggiunta`,'success');
 }
 
-function deleteCategory(name) {
+async function deleteCategory(name) {
   if (!confirm(`Eliminare la categoria "${name}"? Le transazioni associate manterranno il vecchio valore.`)) return;
-  Data.deleteCategory(name);
+  await Data.deleteCategory(name);
   renderSettings();
 }
 
@@ -1445,10 +1400,10 @@ async function headerSync() {
   finally { if (btn) btn.classList.remove('spinning'); }
 }
 
-function saveAccountSettings() {
+async function saveAccountSettings() {
   const bal = parseFloat(el('initial-balance').value) || 0;
-  Data.updateSettings({ initialBalance: bal });
-  showToast('Impostazioni salvate', 'success');
+  await Data.updateSettings({ initialBalance: bal });
+  showToast('Impostazioni salvate su Firebase!', 'success');
 }
 
 function exportData() {
@@ -1466,10 +1421,11 @@ function importDataFile() {
   inp.onchange = () => {
     const f = inp.files[0]; if (!f) return;
     const r = new FileReader();
-    r.onload = e => {
+    r.onload = async e => {
       try {
-        Data.importJSON(e.target.result);
-        showToast('Dati importati con successo!', 'success');
+        showToast('Importazione su Firebase in corso…', 'info');
+        await Data.importJSON(e.target.result);
+        showToast('Dati importati su Firebase!', 'success');
         navigate(S.view);
       } catch(err) { showToast('File non valido: ' + err.message, 'error'); }
     };
@@ -1478,20 +1434,10 @@ function importDataFile() {
   inp.click();
 }
 
-async function reloadSampleData() {
-  if (!confirm('Ripristinare le 330 transazioni da data.json?')) return;
-  const ok = await Data.resetToDefaultData();
-  if (ok) {
-    showToast('Transazioni ricaricate da data.json con successo!', 'success');
-    navigate(S.view);
-  } else {
-    showToast('Impossibile caricare data.json', 'error');
-  }
-}
-
-function clearAllData() {
+async function clearAllData() {
   if (!confirm('Eliminare TUTTI i dati? Questa azione non è reversibile.')) return;
-  Data.clearAll();
+  showToast('Eliminazione in corso…', 'info');
+  await Data.clearAll();
   showToast('Tutti i dati eliminati', 'info');
   navigate('dashboard');
 }
