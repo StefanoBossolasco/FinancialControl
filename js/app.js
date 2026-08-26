@@ -1497,57 +1497,71 @@ function clearAllData() {
 }
 
 // ── Password ──────────────────────────────────────────────────
-async function changePassword() {
+async function handleChangePassword() {
   const curr = el('curr-password').value;
   const nw   = el('new-password').value;
   const conf = el('conf-password').value;
   if (!curr || !nw || !conf) { showToast('Compila tutti i campi', 'warning'); return; }
   if (nw !== conf) { showToast('Le password non corrispondono', 'warning'); return; }
-  const ok = await Auth.checkPassword(curr);
-  if (!ok) { showToast('Password attuale errata', 'error'); return; }
-  await Auth.setPassword(nw);
-  el('curr-password').value = el('new-password').value = el('conf-password').value = '';
-  showToast('Password aggiornata', 'success');
+  try {
+    await Auth.changePassword(curr, nw);
+    el('curr-password').value = el('new-password').value = el('conf-password').value = '';
+    showToast('Password aggiornata con successo', 'success');
+  } catch (err) {
+    showToast('Errore: ' + err.message, 'error');
+  }
 }
 
 // ── LOGIN & SETUP ─────────────────────────────────────────────
 async function handleLogin(e) {
   e.preventDefault();
-  const pw   = el('login-pw').value;
-  const btn  = el('login-btn');
+  const email = el('login-email').value.trim();
+  const pw    = el('login-pw').value;
+  const btn   = el('login-btn');
   btn.disabled = true;
-  const ok = await Auth.checkPassword(pw);
-  if (ok) {
-    Auth.login();
-    showScreen('app');
-    navigate('dashboard');
-  } else {
-    showToast('Password errata', 'error');
-    el('login-pw').value = '';
-    el('login-pw').classList.add('shake');
-    setTimeout(() => el('login-pw').classList.remove('shake'), 500);
+  btn.textContent = 'Accesso...';
+  try {
+    await Auth.login(email, pw);
+    // onAuthStateChanged handles navigation
+  } catch (err) {
+    const msgs = {
+      'auth/user-not-found':     'Account non trovato',
+      'auth/wrong-password':     'Password errata',
+      'auth/invalid-email':      'Email non valida',
+      'auth/invalid-credential': 'Credenziali errate'
+    };
+    showToast(msgs[err.code] || 'Login fallito: ' + err.message, 'error');
+    btn.disabled = false;
+    btn.textContent = 'Accedi';
   }
-  btn.disabled = false;
 }
 
-async function handleSetup(e) {
+async function handleSignup(e) {
   e.preventDefault();
-  const pw   = el('setup-pw').value;
-  const conf = el('setup-confirm').value;
-  if (!pw) { showToast('Inserisci una password', 'warning'); return; }
-  if (pw !== conf) { showToast('Le password non corrispondono', 'warning'); return; }
+  const email = el('setup-email').value.trim();
+  const pw    = el('setup-pw').value;
+  const conf  = el('setup-confirm').value;
+  if (!email)        { showToast('Inserisci la tua email', 'warning'); return; }
+  if (!pw)           { showToast('Inserisci una password', 'warning'); return; }
+  if (pw !== conf)   { showToast('Le password non corrispondono', 'warning'); return; }
   if (pw.length < 6) { showToast('Password troppo corta (min 6 caratteri)', 'warning'); return; }
-  await Auth.setPassword(pw);
-  Auth.login();
-  showScreen('app');
-  navigate('dashboard');
-  showToast('Benvenuto! Importa i tuoi estratti conto per iniziare.', 'success');
+  try {
+    await Auth.signup(email, pw);
+    showToast('Account creato! Benvenuto 🎉', 'success');
+  } catch (err) {
+    const msgs = {
+      'auth/email-already-in-use': 'Email già registrata — prova ad accedere',
+      'auth/invalid-email':        'Email non valida',
+      'auth/weak-password':        'Password troppo debole'
+    };
+    showToast(msgs[err.code] || 'Registrazione fallita: ' + err.message, 'error');
+  }
 }
 
-function logout() {
-  Auth.logout();
-  showScreen('login');
-  el('login-pw').value = '';
+async function logout() {
+  Data.cleanup();
+  await Auth.logout();
+  // onAuthStateChanged automatically switches to login screen
 }
 
 // ── Pagination ────────────────────────────────────────────────
@@ -1637,52 +1651,74 @@ function refreshIcons() {
 }
 
 // ── INIT ──────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', async () => {
-  // Initialize Lucide icons
+document.addEventListener('DOMContentLoaded', () => {
   if (typeof lucide !== 'undefined') lucide.createIcons();
-
-  // Initialize theme
   initTheme();
 
-  await Data.init();
+  // Show loading screen while Firebase determines auth state
+  showScreen('loading');
 
-  // Set default view month to the latest available month with transactions
-  const months = Data.getAvailableMonths();
-  if (months.length > 0) {
-    const latest = months[0]; // e.g. "2026-07"
-    const parts = latest.split('-');
-    if (parts.length === 2) {
-      S.year  = parseInt(parts[0]);
-      S.month = parseInt(parts[1]);
+  // Firebase auth state listener — drives all navigation
+  fbAuth.onAuthStateChanged(async (user) => {
+    if (user) {
+      // Signed in — load user data
+      showScreen('loading');
+      try {
+        await Data.init(user.uid);
+      } catch(e) {
+        console.error('Data init failed:', e);
+        showToast('Errore nel caricamento dati', 'error');
+      }
+
+      // Set default view to latest month with transactions
+      const months = Data.getAvailableMonths();
+      if (months.length > 0) {
+        const parts = months[0].split('-');
+        if (parts.length === 2) {
+          S.year  = parseInt(parts[0]);
+          S.month = parseInt(parts[1]);
+        }
+      }
+
+      showScreen('app');
+      navigate('dashboard');
+      if (typeof lucide !== 'undefined') lucide.createIcons();
+    } else {
+      // Signed out
+      Data.cleanup();
+      showScreen('login');
+      if (typeof lucide !== 'undefined') lucide.createIcons();
     }
-  }
-
-  // Login / Setup / App routing
-  if (!Auth.hasPassword()) {
-    showScreen('setup');
-  } else if (!Auth.isLoggedIn()) {
-    showScreen('login');
-  } else {
-    showScreen('app');
-    navigate('dashboard');
-  }
+  });
 
   // ── Event bindings ──────────────────────────────────────
-  // Login
+  // Auth
   el('login-form')?.addEventListener('submit', handleLogin);
-  el('show-setup-link')?.addEventListener('click', e => { e.preventDefault(); showScreen('setup'); });
-  // Setup
-  el('setup-form')?.addEventListener('submit', handleSetup);
-  // Logout
+  el('show-setup-link')?.addEventListener('click', e => { e.preventDefault(); showScreen('setup'); if (typeof lucide !== 'undefined') lucide.createIcons(); });
+  el('setup-form')?.addEventListener('submit', handleSignup);
+  el('show-login-link')?.addEventListener('click', e => { e.preventDefault(); showScreen('login'); });
+  el('forgot-pw-link')?.addEventListener('click', async e => {
+    e.preventDefault();
+    const email = el('login-email').value.trim() || prompt('Inserisci la tua email per il reset password:');
+    if (!email) return;
+    try {
+      await Auth.sendPasswordReset(email);
+      showToast('Email di reset inviata! Controlla la tua casella.', 'success');
+    } catch(err) {
+      showToast('Errore: ' + err.message, 'error');
+    }
+  });
   el('logout-btn')?.addEventListener('click', logout);
-  // Theme toggle
+
+  // Theme & sidebar
   el('theme-toggle-btn')?.addEventListener('click', toggleTheme);
-  // Sidebar toggle
   el('sidebar-toggle')?.addEventListener('click', toggleSidebar);
   el('sidebar-overlay')?.addEventListener('click', toggleSidebar);
+
   // Month nav
   el('prev-month-btn')?.addEventListener('click', prevMonth);
   el('next-month-btn')?.addEventListener('click', nextMonth);
+
   // Header sync
   el('header-sync-btn')?.addEventListener('click', headerSync);
 
@@ -1694,19 +1730,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   });
 
-  // Import — step 1 dropzones setup (done after DOM ready)
+  // Import dropzones
   setupDropzone('dz-rev-eur', handleRevolutEUR);
   setupDropzone('dz-rev-usd', handleRevolutUSD);
   setupDropzone('dz-intesa',  handleIntesa);
 
-  // Import — step controls
+  // Import controls
   el('imp-next-1')?.addEventListener('click', () => {
-    const hasEur = S.imp.eurParsed && S.imp.eurParsed.transactions && S.imp.eurParsed.transactions.length > 0;
-    const hasUsd = S.imp.usdParsed && S.imp.usdParsed.transactions && S.imp.usdParsed.transactions.length > 0;
-    const hasInt = S.imp.intesaTxs && S.imp.intesaTxs.length > 0;
-    if (!hasEur && !hasUsd && !hasInt) {
-      showToast('Carica almeno un file valido prima di proseguire', 'warning'); return;
-    }
+    const hasEur = S.imp.eurParsed?.transactions?.length > 0;
+    const hasUsd = S.imp.usdParsed?.transactions?.length > 0;
+    const hasInt = S.imp.intesaTxs?.length > 0;
+    if (!hasEur && !hasUsd && !hasInt) { showToast('Carica almeno un file valido prima di proseguire', 'warning'); return; }
     showImportStep(2);
   });
   el('imp-back-2')?.addEventListener('click', () => showImportStep(1));
@@ -1719,24 +1753,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   el('imp-confirm-btn')?.addEventListener('click', confirmImport);
   el('imp-reset-btn')?.addEventListener('click', () => { resetImport(); showImportStep(1); });
 
-  // Bulk category
+  // Bulk category & manual rate
   el('apply-bulk-cat')?.addEventListener('click', applyBulkCategory);
   el('select-all-imp')?.addEventListener('change', e => {
     document.querySelectorAll('.imp-cb').forEach(cb => cb.checked = e.target.checked);
   });
-
-  // Manual rate
   el('apply-manual-rate')?.addEventListener('click', applyManualRate);
 
-  // Dashboard quick filters
-  el('dash-tx-search')?.addEventListener('input', e => {
-    S.dashFilter.search = e.target.value;
-    renderDashboard();
-  });
-  el('dash-tx-cat')?.addEventListener('change', e => {
-    S.dashFilter.category = e.target.value;
-    renderDashboard();
-  });
+  // Dashboard filters
+  el('dash-tx-search')?.addEventListener('input', e => { S.dashFilter.search = e.target.value; renderDashboard(); });
+  el('dash-tx-cat')?.addEventListener('change', e => { S.dashFilter.category = e.target.value; renderDashboard(); });
 
   // Modal forms
   el('add-expense-form')?.addEventListener('submit', handleSaveSingleExpense);
@@ -1753,35 +1779,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   el('save-budget-btn')?.addEventListener('click', saveBudgets);
   el('add-cat-btn')?.addEventListener('click', addCategory);
   el('new-cat-input')?.addEventListener('keydown', e => { if (e.key === 'Enter') addCategory(); });
-  
-  // GitHub Settings
   el('save-gh-btn')?.addEventListener('click', saveGitHubConfig);
   el('gh-test-btn')?.addEventListener('click', testGitHub);
-  
-  // Google Drive Settings
-  el('gd-test-btn')?.addEventListener('click', async () => {
-    const url = el('gd-url').value.trim();
-    const token = el('gd-token').value.trim();
-    if (!url) return showToast('Inserisci URL', 'warning');
-    GoogleDrive.setConfig({ webAppUrl: url, token });
-    try {
-      await GoogleDrive.ping();
-      showToast('Connessione Drive riuscita!', 'success');
-    } catch (e) {
-      showToast('Errore Drive: ' + e.message, 'error');
-    }
-  });
-  el('gd-save-btn')?.addEventListener('click', () => {
-    GoogleDrive.setConfig({ webAppUrl: el('gd-url').value.trim(), token: el('gd-token').value.trim() });
-    showToast('Configurazione Drive salvata', 'success');
-  });
-  el('gd-pull-btn')?.addEventListener('click', syncPull);
-  el('gd-push-btn')?.addEventListener('click', syncPush);
-
   el('sync-pull-btn')?.addEventListener('click', syncPull);
   el('sync-push-btn')?.addEventListener('click', syncPush);
-  
-  el('change-pw-btn')?.addEventListener('click', changePassword);
+  el('change-pw-btn')?.addEventListener('click', handleChangePassword);
   el('export-data-btn')?.addEventListener('click', exportData);
   el('import-data-btn')?.addEventListener('click', importDataFile);
   el('clear-all-btn')?.addEventListener('click', clearAllData);

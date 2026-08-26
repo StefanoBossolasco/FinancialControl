@@ -1,9 +1,7 @@
 // ============================================================
-// DATA MODULE — localStorage persistence + all data helpers
+// DATA MODULE — Firestore + in-memory cache
 // ============================================================
 const Data = (() => {
-  const KEY = 'fc_data';
-
   const DEFAULTS = {
     version: '1.0.0',
     transactions: [],
@@ -20,143 +18,182 @@ const Data = (() => {
   };
 
   let _data = null;
+  let _uid  = null;
+  let _unsubTx = null;
 
-  // ── Load / Save ──────────────────────────────────────────
-  function load() {
-    const raw = localStorage.getItem(KEY);
-    _data = raw ? JSON.parse(raw) : JSON.parse(JSON.stringify(DEFAULTS));
-    return _data;
-  }
+  const metaDoc   = () => fbDb.doc(`users/${_uid}/meta/main`);
+  const txCol     = () => fbDb.collection(`users/${_uid}/transactions`);
+  const txDoc     = (id) => fbDb.doc(`users/${_uid}/transactions/${id}`);
+  const budgetDoc = (key) => fbDb.doc(`users/${_uid}/budgets/${key}`);
+  const budgetCol = () => fbDb.collection(`users/${_uid}/budgets`);
 
-  async function init() {
-    load();
-    // If localStorage has no transactions, auto-load data.json
-    if (!_data || !_data.transactions || _data.transactions.length === 0) {
-      await resetToDefaultData();
-    }
-    return _data;
-  }
+  async function init(uid) {
+    _uid  = uid;
+    _data = JSON.parse(JSON.stringify(DEFAULTS));
 
-  async function resetToDefaultData() {
     try {
-      const res = await fetch('data.json?v=' + Date.now());
-      if (res.ok) {
-        const json = await res.json();
-        if (json && json.transactions && json.transactions.length > 0) {
-          _data = { ...DEFAULTS, ...json };
-          save();
-          return true;
-        }
+      const snap = await metaDoc().get();
+      if (snap.exists) {
+        const d = snap.data();
+        if (d.settings)      _data.settings      = { ..._data.settings, ...d.settings };
+        if (d.categories)    _data.categories    = d.categories;
+        if (d.exchangeRates) _data.exchangeRates = d.exchangeRates;
       }
-    } catch(e) {
-      console.warn('Impossibile caricare data.json automaticamente:', e);
-    }
-    return false;
+    } catch(e) { console.warn('meta load failed:', e); }
+
+    try {
+      const snap = await txCol().get();
+      _data.transactions = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    } catch(e) { console.warn('tx load failed:', e); }
+
+    try {
+      const snap = await budgetCol().get();
+      snap.docs.forEach(d => { _data.budgets[d.id] = d.data(); });
+    } catch(e) { console.warn('budget load failed:', e); }
+
+    if (_unsubTx) _unsubTx();
+    _unsubTx = txCol().onSnapshot(snap => {
+      snap.docChanges().forEach(change => {
+        const tx = { id: change.doc.id, ...change.doc.data() };
+        if (change.type === 'added' || change.type === 'modified') {
+          const i = _data.transactions.findIndex(t => t.id === tx.id);
+          if (i >= 0) _data.transactions[i] = tx;
+          else _data.transactions.push(tx);
+        } else if (change.type === 'removed') {
+          _data.transactions = _data.transactions.filter(t => t.id !== change.doc.id);
+        }
+      });
+      if (typeof S !== 'undefined' && typeof navigate === 'function' && typeof showScreen !== 'undefined') {
+        const screen = document.getElementById('screen-app');
+        if (screen && !screen.classList.contains('hidden')) navigate(S.view);
+      }
+    }, err => console.warn('tx snapshot error:', err));
+
+    return _data;
   }
 
-  function save() {
-    localStorage.setItem(KEY, JSON.stringify(_data));
+  function cleanup() {
+    if (_unsubTx) { _unsubTx(); _unsubTx = null; }
+    _data = null;
+    _uid  = null;
+  }
+
+  async function saveMeta() {
+    if (!_uid) return;
+    await metaDoc().set({
+      settings:      _data.settings,
+      categories:    _data.categories,
+      exchangeRates: _data.exchangeRates
+    });
   }
 
   function get() { return _data; }
 
-  function setData(d) { _data = d; save(); }
-
-  function exportJSON() {
-    return JSON.stringify(_data, null, 2);
+  async function setData(d) {
+    _data = { ...JSON.parse(JSON.stringify(DEFAULTS)), ...d };
+    await saveMeta();
+    let batch = fbDb.batch();
+    let count = 0;
+    for (const tx of _data.transactions) {
+      batch.set(txDoc(tx.id), tx);
+      if (++count >= 499) { await batch.commit(); batch = fbDb.batch(); count = 0; }
+    }
+    if (count > 0) await batch.commit();
+    for (const [key, val] of Object.entries(_data.budgets)) {
+      await budgetDoc(key).set(val);
+    }
   }
 
-  function importJSON(jsonStr) {
-    const parsed = JSON.parse(jsonStr);
-    _data = { ...DEFAULTS, ...parsed };
-    save();
-  }
-
-  function clearAll() {
-    _data = JSON.parse(JSON.stringify(DEFAULTS));
-    save();
-  }
-
-  // ── Transactions ─────────────────────────────────────────
   function getTransactions(filters = {}) {
+    if (!_data) return [];
     let txs = [..._data.transactions];
     if (filters.month)    txs = txs.filter(t => t.month === filters.month);
-    if (filters.year)     txs = txs.filter(t => t.year  === parseInt(filters.year));
+    if (filters.year)     txs = txs.filter(t => t.year === parseInt(filters.year));
     if (filters.category) txs = txs.filter(t => t.category === filters.category);
     if (filters.source)   txs = txs.filter(t => t.source   === filters.source);
     if (filters.search) {
       const s = filters.search.toLowerCase();
-      txs = txs.filter(t => t.description.toLowerCase().includes(s));
+      txs = txs.filter(t => t.description.toLowerCase().includes(s) ||
+        (t.notes && t.notes.toLowerCase().includes(s)));
     }
     if (filters.type === 'expense') txs = txs.filter(t => t.amountEUR < 0);
     if (filters.type === 'income')  txs = txs.filter(t => t.amountEUR > 0);
     return txs.sort((a, b) => new Date(b.date) - new Date(a.date));
   }
 
-  function addTransactions(transactions) {
+  async function addTransactions(transactions) {
+    if (!_data) return 0;
     const existing = new Set(_data.transactions.map(t => t.id));
     const added = transactions.filter(t => !existing.has(t.id));
     _data.transactions.push(...added);
-    save();
+    let batch = fbDb.batch();
+    let count = 0;
+    for (const tx of added) {
+      batch.set(txDoc(tx.id), tx);
+      if (++count >= 499) { await batch.commit(); batch = fbDb.batch(); count = 0; }
+    }
+    if (count > 0) await batch.commit();
     return added.length;
   }
 
-  function updateTransaction(id, updates) {
+  async function updateTransaction(id, updates) {
+    if (!_data) return false;
     const idx = _data.transactions.findIndex(t => t.id === id);
-    if (idx >= 0) { _data.transactions[idx] = { ..._data.transactions[idx], ...updates }; save(); return true; }
-    return false;
+    if (idx < 0) return false;
+    _data.transactions[idx] = { ..._data.transactions[idx], ...updates };
+    await txDoc(id).set(_data.transactions[idx]);
+    return true;
   }
 
-  function deleteTransaction(id) {
+  async function deleteTransaction(id) {
+    if (!_data) return;
     _data.transactions = _data.transactions.filter(t => t.id !== id);
-    save();
+    await txDoc(id).delete();
   }
 
-  // ── Budgets ──────────────────────────────────────────────
   function getAllBudgets(yearMonth) {
+    if (!_data) return {};
     const def   = _data.budgets.default || {};
     const month = _data.budgets[yearMonth] || {};
     const result = {};
-    _data.categories.forEach(cat => {
+    (_data.categories || []).forEach(cat => {
       result[cat] = month[cat] !== undefined ? month[cat] : (def[cat] || 0);
     });
     return result;
   }
 
-  function setDefaultBudget(category, amount) {
-    if (!_data.budgets.default) _data.budgets.default = {};
-    _data.budgets.default[category] = amount;
-    save();
-  }
-
-  function setDefaultBudgets(map) {
+  async function setDefaultBudgets(map) {
+    if (!_data) return;
     _data.budgets.default = { ...(_data.budgets.default || {}), ...map };
-    save();
+    await budgetDoc('default').set(_data.budgets.default);
   }
 
-  function setMonthBudgets(yearMonth, map) {
-    if (!_data.budgets) _data.budgets = { default: {} };
+  async function setDefaultBudget(category, amount) {
+    await setDefaultBudgets({ [category]: amount });
+  }
+
+  async function setMonthBudgets(yearMonth, map) {
+    if (!_data) return;
     _data.budgets[yearMonth] = { ...(_data.budgets[yearMonth] || {}), ...map };
-    save();
+    await budgetDoc(yearMonth).set(_data.budgets[yearMonth]);
   }
 
-  function resetMonthBudgets(yearMonth) {
-    if (_data.budgets && _data.budgets[yearMonth]) {
-      delete _data.budgets[yearMonth];
-      save();
-    }
+  async function resetMonthBudgets(yearMonth) {
+    if (!_data || !_data.budgets[yearMonth]) return;
+    delete _data.budgets[yearMonth];
+    await budgetDoc(yearMonth).delete();
   }
 
-  // ── Exchange Rates ────────────────────────────────────────
-  function addExchangeRates(rates) {
+  async function addExchangeRates(rates) {
+    if (!_data) return;
     _data.exchangeRates.push(...rates);
-    save();
+    await saveMeta();
   }
 
-  function getExchangeRates() { return _data.exchangeRates; }
+  function getExchangeRates() { return _data ? _data.exchangeRates : []; }
 
-  // Weighted average of ALL stored exchange rates (USD per 1 EUR)
   function getWeightedAverageRate() {
+    if (!_data) return null;
     const rates = _data.exchangeRates;
     if (!rates.length) return null;
     const totalEur = rates.reduce((s, r) => s + r.eurSpent, 0);
@@ -164,19 +201,20 @@ const Data = (() => {
     return totalEur > 0 ? totalUsd / totalEur : null;
   }
 
-  // ── Categories ────────────────────────────────────────────
-  function getCategories() { return _data.categories; }
+  function getCategories() { return _data ? _data.categories : []; }
 
-  function addCategory(name) {
-    if (!_data.categories.includes(name)) { _data.categories.push(name); save(); }
+  async function addCategory(name) {
+    if (!_data || _data.categories.includes(name)) return;
+    _data.categories.push(name);
+    await saveMeta();
   }
 
-  function deleteCategory(name) {
+  async function deleteCategory(name) {
+    if (!_data) return;
     _data.categories = _data.categories.filter(c => c !== name);
-    save();
+    await saveMeta();
   }
 
-  // ── Analytics helpers ─────────────────────────────────────
   function getMonthlyTotals(year) {
     const months = {};
     const yr = parseInt(year);
@@ -184,6 +222,7 @@ const Data = (() => {
       const k = `${yr}-${String(m).padStart(2,'0')}`;
       months[k] = { income: 0, expenses: 0, net: 0 };
     }
+    if (!_data) return months;
     _data.transactions
       .filter(t => t.year === yr && t.category !== '__exchange__')
       .forEach(t => {
@@ -198,6 +237,7 @@ const Data = (() => {
 
   function getCategoryTotals(yearMonth) {
     const totals = {};
+    if (!_data) return totals;
     _data.transactions
       .filter(t => t.month === yearMonth && t.category !== '__exchange__' && t.amountEUR < 0)
       .forEach(t => { totals[t.category] = (totals[t.category] || 0) + Math.abs(t.amountEUR); });
@@ -206,6 +246,7 @@ const Data = (() => {
 
   function getAnnualCategoryTotals(year) {
     const totals = {};
+    if (!_data) return totals;
     const yr = parseInt(year);
     _data.transactions
       .filter(t => t.year === yr && t.category !== '__exchange__' && t.amountEUR < 0)
@@ -214,6 +255,7 @@ const Data = (() => {
   }
 
   function getAvailableYears() {
+    if (!_data) return [new Date().getFullYear()];
     const years = new Set(_data.transactions.map(t => t.year));
     const arr = Array.from(years).filter(Boolean).sort((a, b) => b - a);
     if (!arr.length) arr.push(new Date().getFullYear());
@@ -221,15 +263,59 @@ const Data = (() => {
   }
 
   function getAvailableMonths() {
+    if (!_data) return [];
     const months = new Set(_data.transactions.map(t => t.month));
     return Array.from(months).sort((a, b) => b.localeCompare(a));
   }
 
-  function getSettings() { return _data.settings || {}; }
-  function updateSettings(s) { _data.settings = { ...(_data.settings || {}), ...s }; save(); }
+  function getSettings() { return _data ? (_data.settings || {}) : {}; }
+
+  async function updateSettings(s) {
+    if (!_data) return;
+    _data.settings = { ...(_data.settings || {}), ...s };
+    await saveMeta();
+  }
+
+  function exportJSON() { return JSON.stringify(_data, null, 2); }
+
+  async function importJSON(jsonStr) {
+    const parsed = JSON.parse(jsonStr);
+    await setData({ ...JSON.parse(JSON.stringify(DEFAULTS)), ...parsed });
+  }
+
+  async function clearAllTransactions() {
+    if (!_data || !_uid) return;
+    _data.transactions = [];
+    const snap = await txCol().get();
+    let batch = fbDb.batch();
+    let count = 0;
+    for (const doc of snap.docs) {
+      batch.delete(doc.ref);
+      if (++count >= 499) { await batch.commit(); batch = fbDb.batch(); count = 0; }
+    }
+    if (count > 0) await batch.commit();
+  }
+
+  async function clearAll() {
+    await clearAllTransactions();
+    if (_data) { _data.budgets = { default: {} }; _data.settings = DEFAULTS.settings; }
+    await saveMeta();
+    try {
+      const snap = await budgetCol().get();
+      const batch = fbDb.batch();
+      snap.docs.forEach(d => batch.delete(d.ref));
+      await batch.commit();
+    } catch(e) { console.warn('clearAll budgets:', e); }
+  }
+
+  // Legacy compat
+  async function save() { await saveMeta(); }
+  function load() { return _data; }
+  async function resetToDefaultData() { return false; }
 
   return {
-    init, load, save, get, setData, exportJSON, importJSON, clearAll, resetToDefaultData,
+    init, cleanup, get, setData, exportJSON, importJSON, clearAllTransactions, clearAll,
+    save, load, resetToDefaultData,
     getTransactions, addTransactions, updateTransaction, deleteTransaction,
     getAllBudgets, setDefaultBudget, setDefaultBudgets, setMonthBudgets, resetMonthBudgets,
     addExchangeRates, getExchangeRates, getWeightedAverageRate,

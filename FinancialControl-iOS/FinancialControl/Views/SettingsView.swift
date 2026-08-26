@@ -3,51 +3,57 @@ import SwiftUI
 struct SettingsView: View {
     @EnvironmentObject var viewModel: FinancialViewModel
 
-    @State private var owner: String = ""
-    @State private var repo: String = ""
-    @State private var branch: String = "main"
-    @State private var path: String = "data.json"
-    @State private var patToken: String = ""
     @State private var initialBalanceText: String = "0"
-    
-    @State private var gdUrl: String = ""
-    @State private var gdToken: String = ""
+    @State private var currentPw: String = ""
+    @State private var newPw: String = ""
+    @State private var confirmPw: String = ""
 
     var body: some View {
         NavigationView {
             Form {
-                Section(header: Text("Sincronizzazione GitHub"), footer: Text("Inserisci il tuo Personal Access Token (PAT) di GitHub per sincronizzare istantaneamente data.json con l'app Web.")) {
+                // MARK: - Account
+                Section(header: Text("Account Firebase")) {
                     HStack {
-                        Text("Owner")
+                        Text("Email")
                         Spacer()
-                        TextField("StefanoBossolasco", text: $owner)
-                            .multilineTextAlignment(.trailing)
+                        Text(viewModel.currentUser?.email ?? "—")
+                            .foregroundColor(.secondary)
+                            .font(.subheadline)
                     }
 
-                    HStack {
-                        Text("Repo")
-                        Spacer()
-                        TextField("FinancialControl", text: $repo)
-                            .multilineTextAlignment(.trailing)
-                    }
-
-                    HStack {
-                        Text("PAT Token")
-                        Spacer()
-                        SecureField("ghp_…", text: $patToken)
-                            .multilineTextAlignment(.trailing)
-                    }
-
-                    Button(action: saveSettings) {
-                        HStack {
-                            Spacer()
-                            Text("Salva & Synchronizza")
-                                .fontWeight(.semibold)
-                            Spacer()
-                        }
+                    Button(role: .destructive, action: {
+                        try? viewModel.logout()
+                    }) {
+                        Label("Esci dall'account", systemImage: "rectangle.portrait.and.arrow.right")
                     }
                 }
 
+                // MARK: - Cambio password
+                Section(header: Text("Cambia Password")) {
+                    SecureField("Password attuale", text: $currentPw)
+                    SecureField("Nuova password", text: $newPw)
+                    SecureField("Conferma nuova password", text: $confirmPw)
+
+                    Button("Aggiorna Password") {
+                        guard !currentPw.isEmpty, !newPw.isEmpty, newPw == confirmPw else {
+                            viewModel.showToast("Controlla i campi password")
+                            return
+                        }
+                        Task {
+                            do {
+                                try await viewModel.changePassword(currentPw: currentPw, newPw: newPw)
+                                currentPw = ""
+                                newPw = ""
+                                confirmPw = ""
+                            } catch {
+                                viewModel.showToast("Errore: \(error.localizedDescription)")
+                            }
+                        }
+                    }
+                    .disabled(currentPw.isEmpty || newPw.isEmpty || confirmPw.isEmpty)
+                }
+
+                // MARK: - Saldo iniziale
                 Section(header: Text("Saldo Iniziale")) {
                     HStack {
                         Text("Saldo iniziale (€)")
@@ -55,93 +61,39 @@ struct SettingsView: View {
                         TextField("0", text: $initialBalanceText)
                             .keyboardType(.decimalPad)
                             .multilineTextAlignment(.trailing)
+                            .frame(width: 120)
                     }
 
-                    Button("Aggiorna Saldo Iniziale") {
+                    Button("Salva Saldo Iniziale") {
                         if let val = Double(initialBalanceText.replacingOccurrences(of: ",", with: ".")) {
-                            viewModel.data.settings.initialBalance = val
-                            viewModel.saveToCache()
-                            Task {
-                                await viewModel.pushData(message: "Update initial balance from iOS")
-                            }
+                            viewModel.updateInitialBalance(val)
                         }
                     }
                 }
 
-                Section(header: Text("Google Drive (Apps Script)"), footer: Text("Alternativa a GitHub. Inserisci la Web App URL di Apps Script.")) {
-                    HStack {
-                        Text("URL")
-                        Spacer()
-                        TextField("https://script.google.com/...", text: $gdUrl)
-                            .multilineTextAlignment(.trailing)
-                            .textInputAutocapitalization(.never)
-                            .disableAutocorrection(true)
-                    }
-
-                    HStack {
-                        Text("Token")
-                        Spacer()
-                        SecureField("Opzionale", text: $gdToken)
-                            .multilineTextAlignment(.trailing)
-                    }
-
-                    Button(action: saveGoogleDrive) {
-                        HStack {
-                            Spacer()
-                            Text("Salva & Synchronizza")
-                                .fontWeight(.semibold)
-                            Spacer()
-                        }
-                    }
-                }
-
+                // MARK: - Stato connessione
                 Section(header: Text("Stato Connessione")) {
                     HStack {
-                        Text("Transazioni in memoria")
+                        Text("Transazioni sincronizzate")
                         Spacer()
                         Text("\(viewModel.data.transactions.count)")
                             .foregroundColor(.secondary)
                     }
-
-                    Button(action: {
-                        Task {
-                            await viewModel.syncData()
-                        }
-                    }) {
-                        HStack {
-                            Image(systemName: "arrow.triangle.2.circlepath")
-                            Text("Forza Sincronizzazione")
-                        }
+                    HStack {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundColor(.green)
+                        Text("Sincronizzazione Firebase attiva")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
                     }
                 }
             }
             .navigationTitle("Impostazioni")
             .onAppear {
-                owner = viewModel.owner
-                repo = viewModel.repo
-                branch = viewModel.branch
-                path = viewModel.path
-                patToken = viewModel.patToken
-                gdUrl = viewModel.googleDriveUrl
-                gdToken = viewModel.googleDriveToken
                 if let initial = viewModel.data.settings.initialBalance {
-                    initialBalanceText = String(initial)
+                    initialBalanceText = String(format: "%.2f", initial)
                 }
             }
         }
-    }
-
-    private func saveSettings() {
-        viewModel.saveGitHubConfig(
-            owner: owner,
-            repo: repo,
-            branch: branch,
-            path: path,
-            patToken: patToken
-        )
-    }
-
-    private func saveGoogleDrive() {
-        viewModel.saveGoogleDriveConfig(url: gdUrl, token: gdToken)
     }
 }
