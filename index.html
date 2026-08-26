@@ -743,6 +743,15 @@
             <!-- Data management -->
             <div class="card settings-section danger-zone">
               <h3>Gestione Dati</h3>
+              <div class="danger-row" style="background:var(--accent-subtle,rgba(10,132,255,0.08));border-radius:10px;padding:0.75rem 1rem;margin-bottom:0.5rem">
+                <div>
+                  <strong style="font-size:0.875rem;color:var(--accent)">Carica storico su Firebase</strong>
+                  <p>Importa le 416 transazioni da data.json nel tuo account Firebase</p>
+                </div>
+                <button class="btn btn-primary btn-sm" id="migrate-data-btn" onclick="migrateFromDataJson()">
+                  <i data-lucide="cloud-upload" class="lucide-icon icon-sm"></i> Carica su Firebase
+                </button>
+              </div>
               <div class="danger-row">
                 <div><strong style="font-size:0.875rem">Esporta dati</strong><p>Scarica data.json completo</p></div>
                 <button class="btn btn-secondary btn-sm" id="export-data-btn">
@@ -756,13 +765,7 @@
                 </button>
               </div>
               <div class="danger-row">
-                <div><strong style="font-size:0.875rem">Ripristina dati iniziali</strong><p>Ricarica il data.json originale con le 330 transazioni</p></div>
-                <button class="btn btn-secondary btn-sm" id="reload-sample-btn" onclick="reloadSampleData()">
-                  <i data-lucide="rotate-ccw" class="lucide-icon icon-sm"></i> Ripristina
-                </button>
-              </div>
-              <div class="danger-row">
-                <div><strong style="font-size:0.875rem;color:var(--danger)">Cancella tutto</strong><p>Elimina tutte le transazioni</p></div>
+                <div><strong style="font-size:0.875rem;color:var(--danger)">Cancella tutto</strong><p>Elimina tutte le transazioni da Firebase</p></div>
                 <button class="btn btn-danger btn-sm" id="clear-all-btn">
                   <i data-lucide="trash-2" class="lucide-icon icon-sm"></i> Cancella
                 </button>

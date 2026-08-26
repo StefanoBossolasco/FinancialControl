@@ -1442,6 +1442,47 @@ async function clearAllData() {
   navigate('dashboard');
 }
 
+async function migrateFromDataJson() {
+  if (!confirm('Caricare le 416 transazioni da data.json su Firebase?\n\nQuesto aggiungerà i dati mantenendo quelli già presenti (nessuna sovrascrittura di transazioni duplicate).')) return;
+
+  const btn = el('migrate-data-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Caricamento…'; }
+
+  try {
+    showToast('Recupero data.json…', 'info');
+    const res = await fetch('data.json?v=' + Date.now());
+    if (!res.ok) throw new Error('data.json non trovato (status ' + res.status + ')');
+    const json = await res.json();
+
+    if (!json.transactions || !json.transactions.length) {
+      throw new Error('Nessuna transazione trovata in data.json');
+    }
+
+    showToast(`Caricamento di ${json.transactions.length} transazioni su Firebase…`, 'info');
+
+    // Add transactions without overwriting existing ones (dedup by id)
+    const added = await Data.addTransactions(json.transactions);
+
+    // Save categories, exchange rates and settings if not already set
+    if (json.exchangeRates && json.exchangeRates.length) {
+      await Data.addExchangeRates(json.exchangeRates);
+    }
+
+    // Merge budgets
+    if (json.budgets && json.budgets.default) {
+      await Data.setDefaultBudgets(json.budgets.default);
+    }
+
+    showToast(`✅ ${added} transazioni caricate su Firebase!`, 'success');
+    navigate(S.view);
+  } catch (e) {
+    showToast('Errore migrazione: ' + e.message, 'error');
+    console.error('migrateFromDataJson error:', e);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Carica da data.json → Firebase'; }
+  }
+}
+
 // ── Password ──────────────────────────────────────────────────
 async function handleChangePassword() {
   const curr = el('curr-password').value;
