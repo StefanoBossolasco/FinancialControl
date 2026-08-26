@@ -11,6 +11,7 @@
 		1001000229F1A00000000001 /* FinancialData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2001000229F1A00000000001 /* FinancialData.swift */; };
 		1001000329F1A00000000001 /* KeychainService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2001000329F1A00000000001 /* KeychainService.swift */; };
 		1001000429F1A00000000001 /* GitHubService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2001000429F1A00000000001 /* GitHubService.swift */; };
+		1001000E29F1A00000000001 /* GoogleDriveService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2001000E29F1A00000000001 /* GoogleDriveService.swift */; };
 		1001000529F1A00000000001 /* FinancialViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2001000529F1A00000000001 /* FinancialViewModel.swift */; };
 		1001000629F1A00000000001 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2001000629F1A00000000001 /* MainTabView.swift */; };
 		1001000729F1A00000000001 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2001000729F1A00000000001 /* DashboardView.swift */; };
@@ -19,6 +20,7 @@
 		1001000A29F1A00000000001 /* AnalyticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2001000A29F1A00000000001 /* AnalyticsView.swift */; };
 		1001000B29F1A00000000001 /* AddExpenseSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2001000B29F1A00000000001 /* AddExpenseSheet.swift */; };
 		1001000C29F1A00000000001 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2001000C29F1A00000000001 /* SettingsView.swift */; };
+		1001000D29F1A00000000001 /* ImportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2001000D29F1A00000000001 /* ImportView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -27,6 +29,7 @@
 		2001000229F1A00000000001 /* FinancialData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models/FinancialData.swift; sourceTree = "<group>"; };
 		2001000329F1A00000000001 /* KeychainService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/KeychainService.swift; sourceTree = "<group>"; };
 		2001000429F1A00000000001 /* GitHubService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/GitHubService.swift; sourceTree = "<group>"; };
+		2001000E29F1A00000000001 /* GoogleDriveService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/GoogleDriveService.swift; sourceTree = "<group>"; };
 		2001000529F1A00000000001 /* FinancialViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewModels/FinancialViewModel.swift; sourceTree = "<group>"; };
 		2001000629F1A00000000001 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/MainTabView.swift; sourceTree = "<group>"; };
 		2001000729F1A00000000001 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/DashboardView.swift; sourceTree = "<group>"; };
@@ -35,6 +38,7 @@
 		2001000A29F1A00000000001 /* AnalyticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/AnalyticsView.swift; sourceTree = "<group>"; };
 		2001000B29F1A00000000001 /* AddExpenseSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/AddExpenseSheet.swift; sourceTree = "<group>"; };
 		2001000C29F1A00000000001 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/SettingsView.swift; sourceTree = "<group>"; };
+		2001000D29F1A00000000001 /* ImportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/ImportView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -63,6 +67,7 @@
 				2001000229F1A00000000001 /* FinancialData.swift */,
 				2001000329F1A00000000001 /* KeychainService.swift */,
 				2001000429F1A00000000001 /* GitHubService.swift */,
+				2001000E29F1A00000000001 /* GoogleDriveService.swift */,
 				2001000529F1A00000000001 /* FinancialViewModel.swift */,
 				2001000629F1A00000000001 /* MainTabView.swift */,
 				2001000729F1A00000000001 /* DashboardView.swift */,
@@ -71,6 +76,7 @@
 				2001000A29F1A00000000001 /* AnalyticsView.swift */,
 				2001000B29F1A00000000001 /* AddExpenseSheet.swift */,
 				2001000C29F1A00000000001 /* SettingsView.swift */,
+				2001000D29F1A00000000001 /* ImportView.swift */,
 			);
 			path = FinancialControl;
 			sourceTree = "<group>";
@@ -144,6 +150,7 @@
 				1001000229F1A00000000001 /* FinancialData.swift in Sources */,
 				1001000329F1A00000000001 /* KeychainService.swift in Sources */,
 				1001000429F1A00000000001 /* GitHubService.swift in Sources */,
+				1001000E29F1A00000000001 /* GoogleDriveService.swift in Sources */,
 				1001000529F1A00000000001 /* FinancialViewModel.swift in Sources */,
 				1001000629F1A00000000001 /* MainTabView.swift in Sources */,
 				1001000729F1A00000000001 /* DashboardView.swift in Sources */,
@@ -152,6 +159,7 @@
 				1001000A29F1A00000000001 /* AnalyticsView.swift in Sources */,
 				1001000B29F1A00000000001 /* AddExpenseSheet.swift in Sources */,
 				1001000C29F1A00000000001 /* SettingsView.swift in Sources */,
+				1001000D29F1A00000000001 /* ImportView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

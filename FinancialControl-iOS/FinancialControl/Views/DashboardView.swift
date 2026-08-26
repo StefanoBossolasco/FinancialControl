@@ -92,8 +92,9 @@ struct DashboardView: View {
                 .padding()
             }
             .navigationTitle("Dashboard")
+            // Refresh control
             .refreshable {
-                await viewModel.syncFromGitHub()
+                await viewModel.syncData()
             }
             .sheet(isPresented: $isAddSheetPresented) {
                 AddExpenseSheet()

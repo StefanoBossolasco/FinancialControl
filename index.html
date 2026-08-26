@@ -627,7 +627,39 @@
           <!-- RIGHT COLUMN -->
           <div>
 
+            <!-- Google Drive Config -->
+            <div class="card settings-section mb-1">
+              <h3>☁️ Google Drive (Apps Script)</h3>
+              <p class="muted small" style="margin-bottom:1rem">Alternativa a GitHub: archivia <code>data.json</code> su Google Drive tramite un Apps Script.<br>
+              Vedi <strong>GoogleAppsScript/Code.gs</strong> per le istruzioni di deploy.</p>
+              <div class="form-group">
+                <label>Web App URL (Apps Script)</label>
+                <input type="text" id="gd-url" placeholder="https://script.google.com/macros/s/…/exec">
+              </div>
+              <div class="form-group">
+                <label>Token segreto (opzionale)</label>
+                <input type="password" id="gd-token" placeholder="Password impostata nello script">
+              </div>
+              <div class="flex gap-05" style="flex-wrap:wrap">
+                <button class="btn btn-secondary btn-sm" id="gd-test-btn">
+                  <i data-lucide="wifi" class="lucide-icon icon-sm"></i> Testa
+                </button>
+                <button class="btn btn-primary btn-sm" id="gd-save-btn">
+                  <i data-lucide="save" class="lucide-icon icon-sm"></i> Salva config
+                </button>
+              </div>
+              <div style="margin-top:1rem;display:flex;gap:0.5rem;flex-wrap:wrap">
+                <button class="btn btn-secondary btn-sm" id="gd-pull-btn">
+                  <i data-lucide="download" class="lucide-icon icon-sm"></i> Pull da Drive
+                </button>
+                <button class="btn btn-secondary btn-sm" id="gd-push-btn">
+                  <i data-lucide="upload" class="lucide-icon icon-sm"></i> Push su Drive
+                </button>
+              </div>
+            </div>
+
             <!-- GitHub Config -->
+
             <div class="card settings-section mb-1">
               <h3>Sincronizzazione GitHub</h3>
               <div class="gh-grid">
@@ -836,13 +868,89 @@
   </div>
 </div>
 
+<!-- ══════════════════════════════════════════════════════════ -->
+<!--  MODAL: EDIT TRANSACTION                                 -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div id="modal-edit-tx" class="modal-overlay hidden">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3><i data-lucide="pencil" class="lucide-icon icon-sm"></i> Modifica Transazione</h3>
+      <button class="btn-icon" onclick="closeEditTxModal()">
+        <i data-lucide="x" class="lucide-icon"></i>
+      </button>
+    </div>
+    <form id="edit-tx-form">
+      <div class="modal-body">
+        <input type="hidden" id="edit-tx-id">
+        <div class="grid-2 gap-1 mb-1">
+          <div class="form-group mb-0">
+            <label for="edit-tx-date">Data</label>
+            <input type="date" id="edit-tx-date" required>
+          </div>
+          <div class="form-group mb-0">
+            <label for="edit-tx-type">Tipo</label>
+            <select id="edit-tx-type" class="select-styled" style="width:100%">
+              <option value="Expense">Spesa (Uscita)</option>
+              <option value="Income">Entrata</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group mb-1">
+          <label for="edit-tx-desc">Descrizione</label>
+          <input type="text" id="edit-tx-desc" required>
+        </div>
+        <div class="grid-2 gap-1 mb-1">
+          <div class="form-group mb-0">
+            <label for="edit-tx-amount">Importo (valore assoluto)</label>
+            <input type="number" id="edit-tx-amount" placeholder="0.00" step="0.01" min="0.01" required>
+          </div>
+          <div class="form-group mb-0">
+            <label for="edit-tx-currency">Valuta</label>
+            <select id="edit-tx-currency" class="select-styled" style="width:100%">
+              <option value="EUR">EUR (€)</option>
+              <option value="USD">USD ($)</option>
+            </select>
+          </div>
+        </div>
+        <div class="grid-2 gap-1 mb-1">
+          <div class="form-group mb-0">
+            <label for="edit-tx-category">Categoria</label>
+            <select id="edit-tx-category" class="select-styled" style="width:100%" required></select>
+          </div>
+          <div class="form-group mb-0">
+            <label for="edit-tx-source">Fonte / Conto</label>
+            <select id="edit-tx-source" class="select-styled" style="width:100%">
+              <option value="revolut_eur">Revolut EUR</option>
+              <option value="revolut_usd">Revolut USD</option>
+              <option value="intesa">Intesa San Paolo</option>
+              <option value="satispay">Satispay</option>
+              <option value="other">Altro / Contanti</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group mb-0">
+          <label for="edit-tx-notes">Note (opzionale)</label>
+          <input type="text" id="edit-tx-notes" placeholder="es. Dettagli o promemoria…">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeEditTxModal()">Annulla</button>
+        <button type="submit" class="btn btn-primary">
+          <i data-lucide="save" class="lucide-icon icon-sm"></i> Salva Modifiche
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <!-- Scripts -->
-<script src="js/auth.js?v=1.0.4"></script>
-<script src="js/data.js?v=1.0.4"></script>
-<script src="js/import.js?v=1.0.4"></script>
-<script src="js/charts.js?v=1.0.4"></script>
-<script src="js/github.js?v=1.0.4"></script>
-<script src="js/app.js?v=1.0.4"></script>
+<script src="js/auth.js?v=1.0.5"></script>
+<script src="js/data.js?v=1.0.5"></script>
+<script src="js/import.js?v=1.0.5"></script>
+<script src="js/charts.js?v=1.0.5"></script>
+<script src="js/github.js?v=1.0.5"></script>
+<script src="js/googledrive.js?v=1.0.5"></script>
+<script src="js/app.js?v=1.0.5"></script>
 
 </body>
 </html>

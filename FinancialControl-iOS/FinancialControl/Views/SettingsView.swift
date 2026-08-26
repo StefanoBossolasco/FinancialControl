@@ -9,6 +9,9 @@ struct SettingsView: View {
     @State private var path: String = "data.json"
     @State private var patToken: String = ""
     @State private var initialBalanceText: String = "0"
+    
+    @State private var gdUrl: String = ""
+    @State private var gdToken: String = ""
 
     var body: some View {
         NavigationView {
@@ -59,8 +62,35 @@ struct SettingsView: View {
                             viewModel.data.settings.initialBalance = val
                             viewModel.saveToCache()
                             Task {
-                                await viewModel.pushToGitHub(message: "Update initial balance from iOS")
+                                await viewModel.pushData(message: "Update initial balance from iOS")
                             }
+                        }
+                    }
+                }
+
+                Section(header: Text("Google Drive (Apps Script)"), footer: Text("Alternativa a GitHub. Inserisci la Web App URL di Apps Script.")) {
+                    HStack {
+                        Text("URL")
+                        Spacer()
+                        TextField("https://script.google.com/...", text: $gdUrl)
+                            .multilineTextAlignment(.trailing)
+                            .textInputAutocapitalization(.never)
+                            .disableAutocorrection(true)
+                    }
+
+                    HStack {
+                        Text("Token")
+                        Spacer()
+                        SecureField("Opzionale", text: $gdToken)
+                            .multilineTextAlignment(.trailing)
+                    }
+
+                    Button(action: saveGoogleDrive) {
+                        HStack {
+                            Spacer()
+                            Text("Salva & Synchronizza")
+                                .fontWeight(.semibold)
+                            Spacer()
                         }
                     }
                 }
@@ -75,7 +105,7 @@ struct SettingsView: View {
 
                     Button(action: {
                         Task {
-                            await viewModel.syncFromGitHub()
+                            await viewModel.syncData()
                         }
                     }) {
                         HStack {
@@ -92,6 +122,8 @@ struct SettingsView: View {
                 branch = viewModel.branch
                 path = viewModel.path
                 patToken = viewModel.patToken
+                gdUrl = viewModel.googleDriveUrl
+                gdToken = viewModel.googleDriveToken
                 if let initial = viewModel.data.settings.initialBalance {
                     initialBalanceText = String(initial)
                 }
@@ -100,12 +132,16 @@ struct SettingsView: View {
     }
 
     private func saveSettings() {
-        viewModel.saveConfig(
+        viewModel.saveGitHubConfig(
             owner: owner,
             repo: repo,
             branch: branch,
             path: path,
             patToken: patToken
         )
+    }
+
+    private func saveGoogleDrive() {
+        viewModel.saveGoogleDriveConfig(url: gdUrl, token: gdToken)
     }
 }

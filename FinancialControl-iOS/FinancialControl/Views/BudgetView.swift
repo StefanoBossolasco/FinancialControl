@@ -82,7 +82,7 @@ struct BudgetView: View {
             }
             .navigationTitle("Gestione Budget")
             .refreshable {
-                await viewModel.syncFromGitHub()
+                await viewModel.syncData()
             }
         }
     }

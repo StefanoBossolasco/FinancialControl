@@ -52,7 +52,7 @@ struct TransactionsView: View {
             .searchable(text: $searchText, prompt: "Cerca descrizione o categoria…")
             .navigationTitle("Transazioni (\(filteredTransactions.count))")
             .refreshable {
-                await viewModel.syncFromGitHub()
+                await viewModel.syncData()
             }
         }
     }

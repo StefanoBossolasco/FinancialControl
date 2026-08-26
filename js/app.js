@@ -215,6 +215,7 @@ function renderTxRow(t, cats) {
     <td class="${amtClass} mono">${fmt(t.amountEUR)}</td>
     <td class="source-cell">${srcIcon}</td>
     <td style="white-space:nowrap">
+      <button class="btn-icon" onclick="openEditTxModal('${t.id}')" title="Modifica transazione"><i data-lucide="pencil" class="lucide-icon icon-sm"></i></button>
       <button class="note-btn ${hasNote ? 'has-note' : ''}" onclick="openNoteModal('${t.id}')" title="${hasNote ? 'Modifica nota' : 'Aggiungi nota'}"><i data-lucide="file-text" class="lucide-icon icon-sm"></i></button>
       <button class="btn-icon danger" onclick="deleteTx('${t.id}')" title="Elimina"><i data-lucide="trash-2" class="lucide-icon icon-sm"></i></button>
     </td>
@@ -768,6 +769,93 @@ async function handleSaveNote(e) {
   }
 }
 
+
+// ── EDIT TX MODAL ────────────────────────────────────────────────
+function openEditTxModal(id) {
+  const txs = Data.getTransactions({});
+  const t = txs.find(item => item.id === id);
+  if (!t) return;
+
+  const cats = Data.getCategories();
+  set('edit-tx-category', cats.map(c => `<option value="${c}" ${c === t.category ? 'selected' : ''}>${c}</option>`).join(''));
+
+  el('edit-tx-id').value = id;
+  el('edit-tx-date').value = t.date;
+  el('edit-tx-type').value = t.type || (t.amountEUR < 0 ? 'Expense' : 'Income');
+  el('edit-tx-desc').value = t.description;
+  el('edit-tx-amount').value = Math.abs(t.amount || t.amountEUR);
+  el('edit-tx-currency').value = t.currency || 'EUR';
+  el('edit-tx-source').value = t.source;
+  el('edit-tx-notes').value = t.notes || '';
+
+  el('modal-edit-tx').classList.remove('hidden');
+  el('edit-tx-desc').focus();
+}
+
+function closeEditTxModal() {
+  el('modal-edit-tx').classList.add('hidden');
+}
+
+async function handleEditTx(e) {
+  e.preventDefault();
+  const id       = el('edit-tx-id').value;
+  const dateStr  = el('edit-tx-date').value;
+  const type     = el('edit-tx-type').value;
+  const desc     = el('edit-tx-desc').value;
+  const rawAmt   = parseFloat(el('edit-tx-amount').value);
+  const currency = el('edit-tx-currency').value;
+  const category = el('edit-tx-category').value;
+  const source   = el('edit-tx-source').value;
+  const notes    = el('edit-tx-notes').value;
+
+  if (!desc || isNaN(rawAmt) || rawAmt <= 0) return;
+
+  let rate = 1.0;
+  if (currency === 'USD') {
+    rate = Data.getWeightedAverageRate() || S.imp.manualRate || 1.16;
+  }
+  const amtEUR = currency === 'EUR' ? rawAmt : parseFloat((rawAmt / rate).toFixed(2));
+  const finalAmtEUR = type === 'Income' ? Math.abs(amtEUR) : -Math.abs(amtEUR);
+  const finalAmt    = type === 'Income' ? Math.abs(rawAmt) : -Math.abs(rawAmt);
+
+  const year  = parseInt(dateStr.substring(0, 4));
+  const month = dateStr.substring(0, 7);
+
+  Data.updateTransaction(id, {
+    date: dateStr,
+    month,
+    year,
+    description: desc,
+    amount: finalAmt,
+    currency,
+    amountEUR: finalAmtEUR,
+    category,
+    source,
+    type,
+    notes
+  });
+
+  closeEditTxModal();
+  showToast('Transazione modificata con successo!', 'success');
+
+  // Update view month if editing for a different month
+  S.year = year;
+  S.month = parseInt(dateStr.substring(5, 7));
+
+  navigate(S.view);
+
+  if (GitHub.isConfigured()) {
+    try {
+      await GitHub.push(Data.get());
+    } catch (err) {}
+  }
+  if (GoogleDrive.isConfigured()) {
+    try {
+      await GoogleDrive.push(Data.get());
+    } catch (err) {}
+  }
+}
+
 function txPage(p) { S.txFilter.page = p; renderTransactions(); }
 
 function filterTransactions() {
@@ -847,30 +935,42 @@ function renderAnalytics() {
 function prepareBalanceForecastData(year, mode = 'monthly') {
   const yr = parseInt(year);
   const settings = Data.getSettings();
-  let initialBal = settings.initialBalance || 0;
+  const initialBal = settings.initialBalance || 0;
 
-  // Add all transactions prior to selected year
-  const allPriorTxs = Data.getTransactions({}).filter(t => t.category !== '__exchange__' && t.year < yr);
-  allPriorTxs.forEach(t => initialBal += t.amountEUR);
+  // Tutte le transazioni fino ad oggi (per calcolare saldo reale corrente)
+  const allTxs = Data.getTransactions({}).filter(t => t.category !== '__exchange__');
+
+  // Saldo reale al 1 gennaio dell'anno selezionato
+  let balAtYearStart = initialBal;
+  allTxs.filter(t => t.year < yr).forEach(t => balAtYearStart += t.amountEUR);
 
   const yearTxs = Data.getTransactions({ year: yr }).filter(t => t.category !== '__exchange__');
   const monthsWithTxs = new Set(yearTxs.map(t => t.month));
   const monthlyData = Data.getMonthlyTotals(yr);
 
+  // Ultimo mese con dati reali
   let lastActualMonth = 0;
   for (let m = 1; m <= 12; m++) {
     const k = `${yr}-${String(m).padStart(2,'0')}`;
     if (monthsWithTxs.has(k)) lastActualMonth = m;
   }
 
-  // Calculate average monthly income from recorded actual months
-  let incSum = 0;
-  let incCount = 0;
+  // Media mensile entrate dai mesi con dati (escluding zero-income months)
+  let incSum = 0, incCount = 0;
   for (let m = 1; m <= 12; m++) {
     const k = `${yr}-${String(m).padStart(2,'0')}`;
     if (monthsWithTxs.has(k)) {
       const inc = monthlyData[k]?.income || 0;
       if (inc > 0) { incSum += inc; incCount++; }
+    }
+  }
+  // Fallback: usa media dell'anno precedente se non ci sono entrate quest'anno
+  if (incCount === 0) {
+    const prevYearTxs = allTxs.filter(t => t.year === yr - 1 && t.amountEUR > 0);
+    if (prevYearTxs.length > 0) {
+      const prevMonths = new Set(prevYearTxs.map(t => t.month));
+      incSum = prevYearTxs.reduce((s, t) => s + t.amountEUR, 0);
+      incCount = prevMonths.size;
     }
   }
   const avgIncome = incCount > 0 ? (incSum / incCount) : 0;
@@ -880,7 +980,7 @@ function prepareBalanceForecastData(year, mode = 'monthly') {
     const realData = [];
     const forecastData = [];
 
-    let currentBalance = initialBal;
+    let currentBalance = balAtYearStart;
     let lastRealVal = null;
 
     for (let m = 1; m <= 12; m++) {
@@ -889,32 +989,38 @@ function prepareBalanceForecastData(year, mode = 'monthly') {
       labels.push(monthName);
 
       if (m <= lastActualMonth && lastActualMonth > 0) {
-        const monthNet = (monthlyData[k]?.income || 0) - (monthlyData[k]?.expenses || 0);
-        currentBalance += monthNet;
-        realData.push(currentBalance);
+        // Mese con dati reali
+        const monthIncome = monthlyData[k]?.income || 0;
+        const monthExp    = monthlyData[k]?.expenses || 0;
+        currentBalance += (monthIncome - monthExp);
+        realData.push(parseFloat(currentBalance.toFixed(2)));
         forecastData.push(null);
         if (m === lastActualMonth) lastRealVal = currentBalance;
       } else {
+        // Mese futuro — proiezione da budget
         realData.push(null);
+        // Collega la linea reale all'inizio della previsione
         if (forecastData.length > 0 && forecastData[forecastData.length - 1] === null && lastRealVal !== null) {
-          forecastData[forecastData.length - 1] = lastRealVal;
+          forecastData[forecastData.length - 1] = parseFloat(lastRealVal.toFixed(2));
         }
-        const budgets = Data.getAllBudgets(k);
-        const plannedBudget = Object.values(budgets).reduce((s, v) => s + v, 0);
-        const projectedNet = avgIncome - plannedBudget;
+        const monthBudgets = Data.getAllBudgets(k);
+        const plannedExpenses = Object.values(monthBudgets)
+          .filter((v, i) => {
+            const cat = Object.keys(monthBudgets)[i];
+            return cat !== 'Entrate' && cat !== 'Trasferimenti';
+          })
+          .reduce((s, v) => s + v, 0);
+        const projectedNet = avgIncome - plannedExpenses;
         currentBalance += projectedNet;
-        forecastData.push(currentBalance);
+        forecastData.push(parseFloat(currentBalance.toFixed(2)));
       }
     }
 
-    return {
-      labels,
-      realData,
-      forecastData,
-      hasForecast: lastActualMonth < 12 && lastActualMonth > 0
-    };
+    // Se tutti i mesi hanno dati reali, aggiunge comunque una proiezione per i mesi futuri
+    const hasForecast = lastActualMonth < 12 && lastActualMonth > 0;
+    return { labels, realData, forecastData, hasForecast, currentBalance: lastRealVal };
   } else {
-    // Daily mode with forecast tail
+    // Daily mode
     const sortedTxs = [...yearTxs].sort((a, b) => new Date(a.date) - new Date(b.date));
     const dateNet = {};
     sortedTxs.forEach(t => {
@@ -925,7 +1031,7 @@ function prepareBalanceForecastData(year, mode = 'monthly') {
     const realData = [];
     const forecastData = [];
 
-    let currentBalance = initialBal;
+    let currentBalance = balAtYearStart;
     let lastRealVal = null;
 
     const dates = Object.keys(dateNet).sort();
@@ -933,7 +1039,7 @@ function prepareBalanceForecastData(year, mode = 'monthly') {
       currentBalance += dateNet[d];
       const parts = d.split('-');
       labels.push(`${parts[2]}/${parts[1]}/${parts[0].slice(2)}`);
-      realData.push(currentBalance);
+      realData.push(parseFloat(currentBalance.toFixed(2)));
       forecastData.push(null);
       lastRealVal = currentBalance;
     });
@@ -944,24 +1050,17 @@ function prepareBalanceForecastData(year, mode = 'monthly') {
       const monthName = new Date(yr, m - 1).toLocaleDateString('it-IT', { month: 'short' });
       labels.push(`Fine ${monthName}`);
       realData.push(null);
-
       if (forecastData.length > 0 && forecastData[forecastData.length - 1] === null && lastRealVal !== null) {
-        forecastData[forecastData.length - 1] = lastRealVal;
+        forecastData[forecastData.length - 1] = parseFloat(lastRealVal.toFixed(2));
       }
-
-      const budgets = Data.getAllBudgets(k);
-      const plannedBudget = Object.values(budgets).reduce((s, v) => s + v, 0);
-      const projectedNet = avgIncome - plannedBudget;
+      const monthBudgets = Data.getAllBudgets(k);
+      const plannedExpenses = Object.values(monthBudgets).reduce((s, v) => s + v, 0);
+      const projectedNet = avgIncome - plannedExpenses;
       currentBalance += projectedNet;
-      forecastData.push(currentBalance);
+      forecastData.push(parseFloat(currentBalance.toFixed(2)));
     }
 
-    return {
-      labels,
-      realData,
-      forecastData,
-      hasForecast: lastActualMonth < 12
-    };
+    return { labels, realData, forecastData, hasForecast: lastActualMonth < 12, currentBalance: lastRealVal };
   }
 }
 
@@ -1286,42 +1385,64 @@ async function testGitHub() {
 }
 
 async function syncPull() {
-  if (!GitHub.isConfigured()) { showToast('GitHub non configurato', 'warning'); return; }
   const btn = el('sync-pull-btn');
-  btn.disabled = true;
+  if (btn) btn.disabled = true;
   try {
-    const result = await GitHub.pull();
-    if (result) {
-      Data.setData(result.data);
-      showToast('Dati aggiornati da GitHub', 'success');
-      navigate(S.view);
+    if (GoogleDrive.isConfigured()) {
+      const res = await GoogleDrive.pull();
+      if (res && res.data) {
+        Data.set(res.data);
+        showToast('Dati aggiornati da Google Drive', 'success');
+        navigate(S.view);
+      }
+    } else if (GitHub.isConfigured()) {
+      const result = await GitHub.pull();
+      if (result) {
+        Data.setData(result.data);
+        showToast('Dati aggiornati da GitHub', 'success');
+        navigate(S.view);
+      } else {
+        showToast('File data.json non trovato su GitHub', 'warning');
+      }
     } else {
-      showToast('File data.json non trovato su GitHub', 'warning');
+      showToast('Nessuna opzione di sincronizzazione (GitHub o Drive) configurata', 'warning');
     }
   } catch(e) { showToast('Pull fallito: ' + e.message, 'error'); }
-  finally { btn.disabled = false; }
+  finally { if (btn) btn.disabled = false; }
 }
 
 async function syncPush() {
-  if (!GitHub.isConfigured()) { showToast('Configura GitHub prima', 'warning'); return; }
   const btn = el('sync-push-btn');
-  btn.disabled = true;
+  if (btn) btn.disabled = true;
   try {
-    await GitHub.push(Data.get());
-    showToast('Dati inviati a GitHub', 'success');
+    if (GoogleDrive.isConfigured()) {
+      await GoogleDrive.push(Data.get());
+      showToast('Dati inviati a Google Drive', 'success');
+    } else if (GitHub.isConfigured()) {
+      await GitHub.push(Data.get());
+      showToast('Dati inviati a GitHub', 'success');
+    } else {
+      showToast('Nessuna opzione di sincronizzazione (GitHub o Drive) configurata', 'warning');
+    }
   } catch(e) { showToast('Push fallito: ' + e.message, 'error'); }
-  finally { btn.disabled = false; }
+  finally { if (btn) btn.disabled = false; }
 }
 
 async function headerSync() {
-  if (!GitHub.isConfigured()) { showToast('GitHub non configurato — configura in Impostazioni', 'warning'); return; }
   const btn = el('header-sync-btn');
-  btn.classList.add('spinning');
+  if (btn) btn.classList.add('spinning');
   try {
-    await GitHub.push(Data.get());
-    showToast('Sync completato', 'success');
+    if (GoogleDrive.isConfigured()) {
+      await GoogleDrive.push(Data.get());
+      showToast('Sync su Drive completato', 'success');
+    } else if (GitHub.isConfigured()) {
+      await GitHub.push(Data.get());
+      showToast('Sync su GitHub completato', 'success');
+    } else {
+      showToast('Nessun cloud configurato', 'warning');
+    }
   } catch(e) { showToast('Sync fallito: ' + e.message, 'error'); }
-  finally { btn.classList.remove('spinning'); }
+  finally { if (btn) btn.classList.remove('spinning'); }
 }
 
 function saveAccountSettings() {
@@ -1620,6 +1741,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Modal forms
   el('add-expense-form')?.addEventListener('submit', handleSaveSingleExpense);
   el('edit-note-form')?.addEventListener('submit', handleSaveNote);
+  el('edit-tx-form')?.addEventListener('submit', handleEditTx);
 
   // Transactions filters
   el('tx-search')?.addEventListener('input', filterTransactions);
@@ -1631,10 +1753,34 @@ document.addEventListener('DOMContentLoaded', async () => {
   el('save-budget-btn')?.addEventListener('click', saveBudgets);
   el('add-cat-btn')?.addEventListener('click', addCategory);
   el('new-cat-input')?.addEventListener('keydown', e => { if (e.key === 'Enter') addCategory(); });
+  
+  // GitHub Settings
   el('save-gh-btn')?.addEventListener('click', saveGitHubConfig);
   el('gh-test-btn')?.addEventListener('click', testGitHub);
+  
+  // Google Drive Settings
+  el('gd-test-btn')?.addEventListener('click', async () => {
+    const url = el('gd-url').value.trim();
+    const token = el('gd-token').value.trim();
+    if (!url) return showToast('Inserisci URL', 'warning');
+    GoogleDrive.setConfig({ webAppUrl: url, token });
+    try {
+      await GoogleDrive.ping();
+      showToast('Connessione Drive riuscita!', 'success');
+    } catch (e) {
+      showToast('Errore Drive: ' + e.message, 'error');
+    }
+  });
+  el('gd-save-btn')?.addEventListener('click', () => {
+    GoogleDrive.setConfig({ webAppUrl: el('gd-url').value.trim(), token: el('gd-token').value.trim() });
+    showToast('Configurazione Drive salvata', 'success');
+  });
+  el('gd-pull-btn')?.addEventListener('click', syncPull);
+  el('gd-push-btn')?.addEventListener('click', syncPush);
+
   el('sync-pull-btn')?.addEventListener('click', syncPull);
   el('sync-push-btn')?.addEventListener('click', syncPush);
+  
   el('change-pw-btn')?.addEventListener('click', changePassword);
   el('export-data-btn')?.addEventListener('click', exportData);
   el('import-data-btn')?.addEventListener('click', importDataFile);

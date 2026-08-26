@@ -89,7 +89,7 @@ struct ImportView: View {
                             
                             Button(action: {
                                 Task {
-                                    await viewModel.syncFromGitHub()
+                                    await viewModel.syncData()
                                 }
                             }) {
                                 HStack {

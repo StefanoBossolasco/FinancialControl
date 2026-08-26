@@ -11,12 +11,16 @@ class FinancialViewModel: ObservableObject {
     @Published var errorMessage: String? = nil
     @Published var toastMessage: String? = nil
 
-    // Config
+    // GitHub Config
     @Published var owner: String = "StefanoBossolasco"
     @Published var repo: String = "FinancialControl"
     @Published var branch: String = "main"
     @Published var path: String = "data.json"
     @Published var patToken: String = ""
+
+    // Google Drive Config
+    @Published var googleDriveUrl: String = "https://script.google.com/macros/s/AKfycbxAbQvmLE5zdVUroNj23cIaGHt1rUDkWOjyhxKLoK-p4DBvIgN_2rDsb0h_8evGJIHdWQ/exec"
+    @Published var googleDriveToken: String = "AKfycbxAbQvmLE5zdVUroNj23cIaGHt1rUDkWOjyhxKLoK-p4DBvIgN_2rDsb0h_8evGJIHdWQ"
 
     // Filters
     @Published var selectedYear: Int = Calendar.current.component(.year, from: Date())
@@ -28,18 +32,21 @@ class FinancialViewModel: ObservableObject {
         self.patToken = KeychainService.load(key: "github_pat") ?? ""
         self.owner = UserDefaults.standard.string(forKey: "gh_owner") ?? "StefanoBossolasco"
         self.repo = UserDefaults.standard.string(forKey: "gh_repo") ?? "FinancialControl"
+
+        self.googleDriveUrl = UserDefaults.standard.string(forKey: "gd_url") ?? ""
+        self.googleDriveToken = KeychainService.load(key: "gd_token") ?? ""
     }
 
     func loadInitialData() {
         loadFromCache()
-        if !patToken.isEmpty {
+        if !patToken.isEmpty || !googleDriveUrl.isEmpty {
             Task {
-                await syncFromGitHub()
+                await syncData()
             }
         }
     }
 
-    func saveConfig(owner: String, repo: String, branch: String, path: String, patToken: String) {
+    func saveGitHubConfig(owner: String, repo: String, branch: String, path: String, patToken: String) {
         self.owner = owner
         self.repo = repo
         self.branch = branch
@@ -50,10 +57,19 @@ class FinancialViewModel: ObservableObject {
         UserDefaults.standard.set(repo, forKey: "gh_repo")
         KeychainService.save(key: "github_pat", data: patToken)
 
-        showToast("Configurazione salvata!")
-        Task {
-            await syncFromGitHub()
-        }
+        showToast("Configurazione GitHub salvata!")
+        Task { await syncData() }
+    }
+
+    func saveGoogleDriveConfig(url: String, token: String) {
+        self.googleDriveUrl = url
+        self.googleDriveToken = token
+
+        UserDefaults.standard.set(url, forKey: "gd_url")
+        KeychainService.save(key: "gd_token", data: token)
+
+        showToast("Configurazione Drive salvata!")
+        Task { await syncData() }
     }
 
     // MARK: - Local Cache
@@ -71,9 +87,56 @@ class FinancialViewModel: ObservableObject {
         }
     }
 
-    // MARK: - GitHub Sync
-    func syncFromGitHub() async {
-        guard !patToken.isEmpty else { return }
+    // MARK: - Cloud Sync
+    func syncData() async {
+        if !googleDriveUrl.isEmpty {
+            await syncFromGoogleDrive()
+        } else if !patToken.isEmpty {
+            await syncFromGitHub()
+        }
+    }
+
+    func pushData(message: String = "Update from iOS App") async {
+        if !googleDriveUrl.isEmpty {
+            await pushToGoogleDrive()
+        } else if !patToken.isEmpty {
+            await pushToGitHub(message: message)
+        } else {
+            saveToCache()
+        }
+    }
+
+    private func syncFromGoogleDrive() async {
+        isLoading = true
+        errorMessage = nil
+        let service = GoogleDriveService(webAppUrl: googleDriveUrl, token: googleDriveToken)
+        do {
+            let fetchedData = try await service.fetch()
+            self.data = fetchedData
+            self.saveToCache()
+            self.isLoading = false
+            self.showToast("Dati sincronizzati da Google Drive!")
+        } catch {
+            self.isLoading = false
+            self.errorMessage = "Errore Sync Drive: \(error.localizedDescription)"
+        }
+    }
+
+    private func pushToGoogleDrive() async {
+        isSyncing = true
+        let service = GoogleDriveService(webAppUrl: googleDriveUrl, token: googleDriveToken)
+        do {
+            try await service.push(financialData: data)
+            self.saveToCache()
+            self.isSyncing = false
+            self.showToast("Sincronizzato su Google Drive!")
+        } catch {
+            self.isSyncing = false
+            self.showToast("Sync Drive fallito: salvato in locale")
+        }
+    }
+
+    private func syncFromGitHub() async {
         isLoading = true
         errorMessage = nil
 
@@ -87,15 +150,11 @@ class FinancialViewModel: ObservableObject {
             self.showToast("Dati sincronizzati da GitHub!")
         } catch {
             self.isLoading = false
-            self.errorMessage = "Errore Sync: \(error.localizedDescription)"
+            self.errorMessage = "Errore Sync GitHub: \(error.localizedDescription)"
         }
     }
 
-    func pushToGitHub(message: String = "Update from iOS App") async {
-        guard !patToken.isEmpty else {
-            saveToCache()
-            return
-        }
+    private func pushToGitHub(message: String) async {
         isSyncing = true
 
         let service = GitHubService(owner: owner, repo: repo, branch: branch, path: path, token: patToken)
@@ -107,7 +166,7 @@ class FinancialViewModel: ObservableObject {
             self.showToast("Sincronizzato su GitHub!")
         } catch {
             self.isSyncing = false
-            self.showToast("Sync fallito: salvato in locale")
+            self.showToast("Sync GitHub fallito: salvato in locale")
         }
     }
 
@@ -144,7 +203,7 @@ class FinancialViewModel: ObservableObject {
         saveToCache()
 
         Task {
-            await pushToGitHub(message: "Add transaction from iOS: \(description)")
+            await pushData(message: "Add transaction from iOS: \(description)")
         }
     }
 
@@ -152,7 +211,7 @@ class FinancialViewModel: ObservableObject {
         data.transactions.removeAll { $0.id == id }
         saveToCache()
         Task {
-            await pushToGitHub(message: "Delete transaction from iOS")
+            await pushData(message: "Delete transaction from iOS")
         }
     }
 
@@ -163,7 +222,7 @@ class FinancialViewModel: ObservableObject {
         data.budgets[yearMonth]?[category] = amount
         saveToCache()
         Task {
-            await pushToGitHub(message: "Update budget for \(category) from iOS")
+            await pushData(message: "Update budget for \(category) from iOS")
         }
     }
 
