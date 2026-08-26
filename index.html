@@ -82,6 +82,9 @@
 <!-- ══════════════════════════════════════════════════════════ -->
 <div id="screen-app" class="screen hidden">
 
+  <!-- Mobile sidebar overlay -->
+  <div id="sidebar-overlay"></div>
+
   <!-- ── SIDEBAR ─────────────────────────────────────────── -->
   <nav id="sidebar">
     <div class="sidebar-brand">
@@ -449,6 +452,8 @@
             <button class="btn btn-secondary" id="imp-back-3">
               <i data-lucide="arrow-left" class="lucide-icon icon-sm"></i> Modifica
             </button>
+            <!-- Duplicate-aware import buttons injected here by buildImportSummary -->
+            <div id="imp-dup-btns" style="display:inline-flex;gap:0.5rem;flex-wrap:wrap"></div>
             <button class="btn btn-success" id="imp-confirm-btn">
               <i data-lucide="check" class="lucide-icon icon-sm"></i> Importa le transazioni
             </button>

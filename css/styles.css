@@ -1012,19 +1012,76 @@ input[type="number"]::-webkit-inner-spin-button { opacity: 0.3; }
 @media (max-width: 1024px) {
   .charts-row { grid-template-columns: 1fr; }
 }
+
+/* ── Tablet (768px) ─────────────────────────────────────────── */
 @media (max-width: 768px) {
-  #sidebar  { width: 68px; }
-  #main-content { margin-left: 68px; }
-  .sidebar-brand .brand-text, .nav-link span:not(.nav-icon), .sidebar-footer button span:not(.nav-icon), .theme-toggle-sidebar span:not(.nav-icon) { display: none; }
-  .nav-link { justify-content: center; }
+  /* Sidebar: overlay a scomparsa invece di collassarsi */
+  #sidebar {
+    position: fixed;
+    top: 0; left: 0; bottom: 0;
+    transform: translateX(-100%);
+    transition: transform var(--t-spring);
+    width: var(--sidebar-w) !important;
+    z-index: 200;
+  }
+  #sidebar.mobile-open {
+    transform: translateX(0);
+    box-shadow: 0 0 60px rgba(0,0,0,0.5);
+  }
+
+  /* Overlay scuro quando sidebar aperta */
+  #sidebar-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 150;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+  }
+  #sidebar-overlay.visible { display: block; }
+
+  #main-content { margin-left: 0 !important; }
   .kpi-grid { grid-template-columns: repeat(2, 1fr); }
-  .dz-grid  { grid-template-columns: 1fr; }
+  .charts-row { grid-template-columns: 1fr; }
+  .dz-grid  { grid-template-columns: 1fr 1fr; }
   .gh-grid  { grid-template-columns: 1fr; }
+  table { font-size: 12px; }
+  .kpi-value { font-size: 1.45rem; }
+
+  /* Mantieni testo nella sidebar anche su tablet */
+  .sidebar-brand .brand-text,
+  .nav-link span:not(.nav-icon),
+  .sidebar-footer button span:not(.nav-icon),
+  .theme-toggle-sidebar span:not(.nav-icon) { display: inline; }
+  .nav-link { justify-content: flex-start; }
 }
+
+/* ── Mobile (480px) ─────────────────────────────────────────── */
 @media (max-width: 480px) {
-  .kpi-grid { grid-template-columns: 1fr; }
-  .view-container { padding: 1.25rem; }
-  #month-label { min-width: 100px; font-size: 0.8rem; }
+  .kpi-grid { grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+  .view-container { padding: 1rem; }
+  #month-label { min-width: 90px; font-size: 0.78rem; }
+  .dz-grid { grid-template-columns: 1fr; }
+  .grid-2 { grid-template-columns: 1fr; }
+  .modal-content { max-width: 100%; margin: 0.5rem; border-radius: var(--radius); }
+  .imp-nav { flex-direction: column; gap: 0.75rem; }
+  .imp-nav .btn { width: 100%; }
+  #imp-dup-btns { width: 100%; flex-direction: column; }
+  #imp-dup-btns .btn { width: 100%; }
+
+  /* Tabelle scrollabili su mobile */
+  .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+  /* Nascondi colonne meno importanti nelle tabelle transazioni su mobile */
+  .source-cell { display: none; }
+
+  /* Header compatto */
+  #app-header { padding: 0 1rem; }
+  #page-title { font-size: 1rem; }
+
+  /* Bottoni azioni: nasconde testo, mostra solo icone */
+  .btn-text-mobile { display: none; }
 }
 
 /* ── LAYOUT HELPERS ──────────────────────────────────────────── */

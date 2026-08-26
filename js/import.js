@@ -183,12 +183,32 @@ const Import = (() => {
         }
       }
     }
-    // Fallback: search for any row containing 'data' in column 0 or 1
+    // Fallback 2: any row that has a cell containing 'data'
     if (headerIdx < 0) {
       for (let i = 0; i < rows.length; i++) {
         const r = rows[i];
-        if (r && (String(r[0]).trim().toLowerCase().startsWith('data') || String(r[1]).trim().toLowerCase().startsWith('data'))) {
+        if (r && r.some(c => String(c).trim().toLowerCase().includes('data'))) {
           headerIdx = i;
+          break;
+        }
+      }
+    }
+    // Fallback 3: any row that has a cell containing 'importo'
+    if (headerIdx < 0) {
+      for (let i = 0; i < rows.length; i++) {
+        const r = rows[i];
+        if (r && r.some(c => String(c).trim().toLowerCase().includes('importo'))) {
+          headerIdx = i;
+          break;
+        }
+      }
+    }
+    // Fallback 4: use first non-empty row as header and attempt parsing anyway
+    if (headerIdx < 0) {
+      for (let i = 0; i < rows.length; i++) {
+        if (rows[i] && rows[i].some(c => String(c).trim() !== '')) {
+          headerIdx = i;
+          console.warn('[parseIntesaXLSX] Intestazione non trovata, uso riga', i, 'come header di fallback:', rows[i]);
           break;
         }
       }

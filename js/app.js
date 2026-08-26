@@ -333,14 +333,19 @@ function handleIntesa(file, zone) {
   const reader = new FileReader();
   reader.onload = e => {
     try {
-      S.imp.intesaTxs = Import.parseIntesaXLSX(e.target.result);
+      const arrayBuffer = e.target.result;
+      const data = new Uint8Array(arrayBuffer);
+      S.imp.intesaTxs = Import.parseIntesaXLSX(data);
       if (!S.imp.intesaTxs || !S.imp.intesaTxs.length) {
         showToast('Nessuna transazione valida trovata in ' + file.name, 'warning');
         return;
       }
       markDropzone(zone, file.name);
       showToast(`Intesa: ${S.imp.intesaTxs.length} righe caricate`, 'success');
-    } catch (err) { showToast('Errore nel file Intesa: ' + err.message, 'error'); }
+    } catch (err) {
+      console.error('[handleIntesa] Errore parsing Intesa XLSX:', err);
+      showToast('Errore nel file Intesa: ' + err.message, 'error');
+    }
   };
   reader.readAsArrayBuffer(file);
 }
@@ -502,7 +507,44 @@ function buildImportSummary() {
   const catRows = Object.entries(catMap).sort((a,b)=>b[1]-a[1])
     .map(([c,v]) => `<tr><td>${c}</td><td class="mono">${fmt(v)}</td></tr>`).join('');
 
+  // ── Duplicate detection ────────────────────────────────────
+  const existing = new Set(Data.getTransactions({}).map(t => t.id));
+  const duplicates = S.imp.merged.filter(t => existing.has(t.id));
+  const newOnes    = S.imp.merged.filter(t => !existing.has(t.id) && t.amountEUR !== null && t.category !== '__exchange__');
+  S.imp.duplicatesFound = duplicates.length;
+  S.imp.newOnesCount    = newOnes.length;
+
+  // Duplicate banner (yellow) shown only when there are duplicates
+  const dupBanner = duplicates.length > 0
+    ? `<div class="warn-banner" style="margin-bottom:1rem">
+        <i data-lucide="copy" class="lucide-icon icon-sm" style="margin-right:0.4rem"></i>
+        <strong>${duplicates.length} transazioni già presenti nei tuoi dati.</strong>
+        Vuoi importare solo le ${newOnes.length} nuove?
+      </div>`
+    : '';
+
+  // Buttons for step 3 nav (injected here, controlled via data attr)
+  const importBtns = duplicates.length > 0
+    ? `<button class="btn btn-primary" onclick="confirmImport(true)" style="margin-right:0.5rem">
+         <i data-lucide="check-circle" class="lucide-icon icon-sm"></i>
+         Importa Solo Nuove (${newOnes.length})
+       </button>
+       <button class="btn btn-secondary" onclick="confirmImport(false)">
+         <i data-lucide="layers" class="lucide-icon icon-sm"></i>
+         Importa Tutte (inclusi ${duplicates.length} duplicati)
+       </button>`
+    : '';
+
+  // Inject extra buttons into step-3 nav (alongside existing confirm btn)
+  const extraBtnsEl = el('imp-dup-btns');
+  if (extraBtnsEl) extraBtnsEl.innerHTML = importBtns;
+
+  // Hide/show the standard confirm button depending on duplicates
+  const confirmBtn = el('imp-confirm-btn');
+  if (confirmBtn) confirmBtn.style.display = duplicates.length > 0 ? 'none' : '';
+
   set('imp-summary-body', `
+    ${dupBanner}
     <div class="summary-grid">
       <div class="summary-card"><span class="summary-label">Transazioni</span><span class="summary-val">${valid.length}</span></div>
       <div class="summary-card negative"><span class="summary-label">Uscite</span><span class="summary-val">${fmtCompact(totalExp)}</span></div>
@@ -512,10 +554,17 @@ function buildImportSummary() {
     <h4 style="margin: 1.5rem 0 0.75rem">Per categoria</h4>
     <table class="summary-table"><tbody>${catRows}</tbody></table>
   `);
+  refreshIcons();
 }
 
-async function confirmImport() {
-  const toSave = S.imp.merged.filter(t => t.amountEUR !== null && t.category !== '__exchange__');
+async function confirmImport(onlyNew = false) {
+  let toSave;
+  if (onlyNew) {
+    const existing = new Set(Data.getTransactions({}).map(t => t.id));
+    toSave = S.imp.merged.filter(t => !existing.has(t.id) && t.amountEUR !== null && t.category !== '__exchange__');
+  } else {
+    toSave = S.imp.merged.filter(t => t.amountEUR !== null && t.category !== '__exchange__');
+  }
   if (!toSave.length) { showToast('Nessuna transazione valida da importare', 'warning'); return; }
 
   const added = Data.addTransactions(toSave);
@@ -1406,8 +1455,17 @@ function escHtml(str) {
 
 // ── Sidebar toggle ────────────────────────────────────────────
 function toggleSidebar() {
-  el('sidebar').classList.toggle('collapsed');
-  el('main-content').classList.toggle('sidebar-collapsed');
+  const sidebar  = el('sidebar');
+  const overlay  = el('sidebar-overlay');
+  const isMobile = window.innerWidth <= 768;
+
+  if (isMobile) {
+    sidebar.classList.toggle('mobile-open');
+    overlay?.classList.toggle('visible');
+  } else {
+    sidebar.classList.toggle('collapsed');
+    el('main-content').classList.toggle('sidebar-collapsed');
+  }
 }
 
 // ── Theme toggle ──────────────────────────────────────────────
@@ -1500,6 +1558,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   el('theme-toggle-btn')?.addEventListener('click', toggleTheme);
   // Sidebar toggle
   el('sidebar-toggle')?.addEventListener('click', toggleSidebar);
+  el('sidebar-overlay')?.addEventListener('click', toggleSidebar);
   // Month nav
   el('prev-month-btn')?.addEventListener('click', prevMonth);
   el('next-month-btn')?.addEventListener('click', nextMonth);

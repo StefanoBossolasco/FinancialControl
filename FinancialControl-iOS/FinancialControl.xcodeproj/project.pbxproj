@@ -1,0 +1,259 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 55;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		1001000129F1A00000000001 /* FinancialControlApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2001000129F1A00000000001 /* FinancialControlApp.swift */; };
+		1001000229F1A00000000001 /* FinancialData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2001000229F1A00000000001 /* FinancialData.swift */; };
+		1001000329F1A00000000001 /* KeychainService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2001000329F1A00000000001 /* KeychainService.swift */; };
+		1001000429F1A00000000001 /* GitHubService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2001000429F1A00000000001 /* GitHubService.swift */; };
+		1001000529F1A00000000001 /* FinancialViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2001000529F1A00000000001 /* FinancialViewModel.swift */; };
+		1001000629F1A00000000001 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2001000629F1A00000000001 /* MainTabView.swift */; };
+		1001000729F1A00000000001 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2001000729F1A00000000001 /* DashboardView.swift */; };
+		1001000829F1A00000000001 /* BudgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2001000829F1A00000000001 /* BudgetView.swift */; };
+		1001000929F1A00000000001 /* TransactionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2001000929F1A00000000001 /* TransactionsView.swift */; };
+		1001000A29F1A00000000001 /* AnalyticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2001000A29F1A00000000001 /* AnalyticsView.swift */; };
+		1001000B29F1A00000000001 /* AddExpenseSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2001000B29F1A00000000001 /* AddExpenseSheet.swift */; };
+		1001000C29F1A00000000001 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2001000C29F1A00000000001 /* SettingsView.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		0001000029F1A00000000001 /* FinancialControl.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FinancialControl.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		2001000129F1A00000000001 /* FinancialControlApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinancialControlApp.swift; sourceTree = "<group>"; };
+		2001000229F1A00000000001 /* FinancialData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models/FinancialData.swift; sourceTree = "<group>"; };
+		2001000329F1A00000000001 /* KeychainService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/KeychainService.swift; sourceTree = "<group>"; };
+		2001000429F1A00000000001 /* GitHubService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/GitHubService.swift; sourceTree = "<group>"; };
+		2001000529F1A00000000001 /* FinancialViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewModels/FinancialViewModel.swift; sourceTree = "<group>"; };
+		2001000629F1A00000000001 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/MainTabView.swift; sourceTree = "<group>"; };
+		2001000729F1A00000000001 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/DashboardView.swift; sourceTree = "<group>"; };
+		2001000829F1A00000000001 /* BudgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/BudgetView.swift; sourceTree = "<group>"; };
+		2001000929F1A00000000001 /* TransactionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/TransactionsView.swift; sourceTree = "<group>"; };
+		2001000A29F1A00000000001 /* AnalyticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/AnalyticsView.swift; sourceTree = "<group>"; };
+		2001000B29F1A00000000001 /* AddExpenseSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/AddExpenseSheet.swift; sourceTree = "<group>"; };
+		2001000C29F1A00000000001 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/SettingsView.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		3001000029F1A00000000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		4001000029F1A00000000001 = {
+			isa = PBXGroup;
+			children = (
+				4001000129F1A00000000001 /* FinancialControl */,
+				4001000229F1A00000000001 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		4001000129F1A00000000001 /* FinancialControl */ = {
+			isa = PBXGroup;
+			children = (
+				2001000129F1A00000000001 /* FinancialControlApp.swift */,
+				2001000229F1A00000000001 /* FinancialData.swift */,
+				2001000329F1A00000000001 /* KeychainService.swift */,
+				2001000429F1A00000000001 /* GitHubService.swift */,
+				2001000529F1A00000000001 /* FinancialViewModel.swift */,
+				2001000629F1A00000000001 /* MainTabView.swift */,
+				2001000729F1A00000000001 /* DashboardView.swift */,
+				2001000829F1A00000000001 /* BudgetView.swift */,
+				2001000929F1A00000000001 /* TransactionsView.swift */,
+				2001000A29F1A00000000001 /* AnalyticsView.swift */,
+				2001000B29F1A00000000001 /* AddExpenseSheet.swift */,
+				2001000C29F1A00000000001 /* SettingsView.swift */,
+			);
+			path = FinancialControl;
+			sourceTree = "<group>";
+		};
+		4001000229F1A00000000001 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				0001000029F1A00000000001 /* FinancialControl.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		5001000029F1A00000000001 /* FinancialControl */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 7001000029F1A00000000001 /* Build configuration list for PBXNativeTarget "FinancialControl" */;
+			buildPhases = (
+				6001000029F1A00000000001 /* Sources */,
+				3001000029F1A00000000001 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = FinancialControl;
+			productName = FinancialControl;
+			productReference = 0001000029F1A00000000001 /* FinancialControl.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		0000000029F1A00000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1400;
+				LastUpgradeCheck = 1400;
+				TargetAttributes = {
+					5001000029F1A00000000001 = {
+						CreatedOnToolsVersion = 14.0;
+					};
+				};
+			};
+			buildConfigurationList = 7001000129F1A00000000001 /* Build configuration list for PBXProject "FinancialControl" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 4001000029F1A00000000001;
+			productRefGroup = 4001000229F1A00000000001 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				5001000029F1A00000000001 /* FinancialControl */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		6001000029F1A00000000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1001000129F1A00000000001 /* FinancialControlApp.swift in Sources */,
+				1001000229F1A00000000001 /* FinancialData.swift in Sources */,
+				1001000329F1A00000000001 /* KeychainService.swift in Sources */,
+				1001000429F1A00000000001 /* GitHubService.swift in Sources */,
+				1001000529F1A00000000001 /* FinancialViewModel.swift in Sources */,
+				1001000629F1A00000000001 /* MainTabView.swift in Sources */,
+				1001000729F1A00000000001 /* DashboardView.swift in Sources */,
+				1001000829F1A00000000001 /* BudgetView.swift in Sources */,
+				1001000929F1A00000000001 /* TransactionsView.swift in Sources */,
+				1001000A29F1A00000000001 /* AnalyticsView.swift in Sources */,
+				1001000B29F1A00000000001 /* AddExpenseSheet.swift in Sources */,
+				1001000C29F1A00000000001 /* SettingsView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		8001000129F1A00000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.stefanobossolasco.FinancialControl;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_DIGESTS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		8001000229F1A00000000001 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.stefanobossolasco.FinancialControl;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_DIGESTS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		8001000329F1A00000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				SDKROOT = iphoneos;
+			};
+			name = Debug;
+		};
+		8001000429F1A00000000001 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				SDKROOT = iphoneos;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		7001000029F1A00000000001 /* Build configuration list for PBXNativeTarget "FinancialControl" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				8001000129F1A00000000001 /* Debug */,
+				8001000229F1A00000000001 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		7001000129F1A00000000001 /* Build configuration list for PBXProject "FinancialControl" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				8001000329F1A00000000001 /* Debug */,
+				8001000429F1A00000000001 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 0000000029F1A00000000001 /* Project object */;
+}
