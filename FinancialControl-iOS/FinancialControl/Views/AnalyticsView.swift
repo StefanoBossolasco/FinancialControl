@@ -69,11 +69,19 @@ struct AnalyticsView: View {
                         Chart(monthlyItems) { item in
                             BarMark(
                                 x: .value("Mese", item.monthLabel),
-                                y: .value("Uscite", item.expenses)
+                                y: .value("Importo", item.expenses)
                             )
                             .foregroundStyle(Color.red.opacity(0.85))
-                            .cornerRadius(4)
+                            .position(by: .value("Tipo", "Uscite"))
+
+                            BarMark(
+                                x: .value("Mese", item.monthLabel),
+                                y: .value("Importo", item.income)
+                            )
+                            .foregroundStyle(Color.green.opacity(0.85))
+                            .position(by: .value("Tipo", "Entrate"))
                         }
+                        .chartLegend(.visible)
                         .frame(height: 200)
                     }
                     .padding()
@@ -109,10 +117,19 @@ struct AnalyticsView: View {
         let monthsWithTxs = Set(yearTxs.map { $0.month })
 
         var lastActualMonth = 0
+        var incSum = 0.0
+        var incCount = 0
+
         for m in 1...12 {
             let k = String(format: "%04d-%02d", year, m)
-            if monthsWithTxs.contains(k) { lastActualMonth = m }
+            if monthsWithTxs.contains(k) { 
+                lastActualMonth = m 
+                let monthInc = yearTxs.filter { $0.month == k && $0.amountEUR > 0 }.reduce(0) { $0 + $1.amountEUR }
+                if monthInc > 0 { incSum += monthInc; incCount += 1 }
+            }
         }
+        
+        let avgIncome = incCount > 0 ? (incSum / Double(incCount)) : 0.0
 
         let initial = viewModel.data.settings.initialBalance ?? 0
         var current = initial + txs.filter { $0.year < year }.reduce(0) { $0 + $1.amountEUR }
@@ -131,8 +148,15 @@ struct AnalyticsView: View {
                 if m == lastActualMonth { lastRealVal = current }
             } else {
                 let budgets = viewModel.data.budgets[k] ?? viewModel.data.budgets["default"] ?? [:]
-                let plannedBud = budgets.values.reduce(0, +)
-                current -= plannedBud
+                var plannedExp = 0.0
+                var budInc = 0.0
+                for (cat, val) in budgets {
+                    if cat == "Entrate" { budInc = val }
+                    else if cat != "Trasferimenti" && cat != "__exchange__" { plannedExp += val }
+                }
+                
+                if budInc == 0 { budInc = avgIncome }
+                current += (budInc - plannedExp)
                 
                 let isFirstForecast = points.last?.realBalance != nil
                 let fVal = current

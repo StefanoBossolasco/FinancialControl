@@ -12,19 +12,9 @@ struct MainTabView: View {
                         Label("Dashboard", systemImage: "square.grid.2x2.fill")
                     }
 
-                BudgetView()
-                    .tabItem {
-                        Label("Budget", systemImage: "banknote.fill")
-                    }
-
-                ImportView()
-                    .tabItem {
-                        Label("Importa", systemImage: "square.and.arrow.down.fill")
-                    }
-
                 TransactionsView()
                     .tabItem {
-                        Label("Transazioni", systemImage: "creditcard.fill")
+                        Label("Transazioni", systemImage: "list.bullet.rectangle.portrait")
                     }
 
                 AnalyticsView()
@@ -32,9 +22,9 @@ struct MainTabView: View {
                         Label("Analytics", systemImage: "chart.xyaxis.line")
                     }
 
-                SettingsView()
+                MoreTabView()
                     .tabItem {
-                        Label("Impostazioni", systemImage: "gearshape.fill")
+                        Label("Altro", systemImage: "ellipsis.circle.fill")
                     }
             }
             .accentColor(.blue)
