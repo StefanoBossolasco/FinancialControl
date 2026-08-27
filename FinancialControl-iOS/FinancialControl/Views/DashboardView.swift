@@ -175,42 +175,44 @@ struct MonthlyBudgetOverviewView: View {
     @EnvironmentObject var viewModel: FinancialViewModel
     var isBalanceHidden: Bool
 
+    // Extract calculation logic to a property to avoid SwiftUI result builder errors
+    var sortedCategoriesData: [(category: String, spent: Double, budget: Double)] {
+        let currentMonthStr = String(format: "%04d-%02d", viewModel.selectedYear, viewModel.selectedMonth)
+        let monthTxs = viewModel.data.transactions.filter { $0.month == currentMonthStr && $0.amountEUR < 0 && $0.category != "__exchange__" && $0.category != "Trasferimenti" }
+        let budgets = viewModel.data.budgets[currentMonthStr] ?? viewModel.data.budgets["default"] ?? [:]
+        
+        var expensesByCategory: [String: Double] = [:]
+        for tx in monthTxs {
+            expensesByCategory[tx.category, default: 0] += abs(tx.amountEUR)
+        }
+        
+        let allCategories = Set(expensesByCategory.keys).union(budgets.keys).filter { $0 != "Entrate" && $0 != "Trasferimenti" }
+        
+        let sorted = allCategories.sorted { (expensesByCategory[$0] ?? 0) > (expensesByCategory[$1] ?? 0) }
+        
+        return sorted.map { cat in
+            (category: cat, spent: expensesByCategory[cat] ?? 0, budget: budgets[cat] ?? 0)
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Budget Mensile vs Spese")
                 .font(.headline)
                 .padding(.horizontal, 4)
 
-            let currentMonthStr = String(format: "%04d-%02d", viewModel.selectedYear, viewModel.selectedMonth)
-            let monthTxs = viewModel.data.transactions.filter { $0.month == currentMonthStr && $0.amountEUR < 0 && $0.category != "__exchange__" && $0.category != "Trasferimenti" }
-            let budgets = viewModel.data.budgets[currentMonthStr] ?? viewModel.data.budgets["default"] ?? [:]
+            let data = sortedCategoriesData
             
-            // Calcola la somma per ogni categoria
-            var expensesByCategory: [String: Double] = [:]
-            for tx in monthTxs {
-                expensesByCategory[tx.category, default: 0] += abs(tx.amountEUR)
-            }
-            
-            // Trova tutte le categorie che hanno un budget o una spesa (escludendo Entrate)
-            let allCategories = Set(expensesByCategory.keys).union(budgets.keys).filter { $0 != "Entrate" && $0 != "Trasferimenti" }
-            
-            let sortedCategories = allCategories.sorted {
-                (expensesByCategory[$0] ?? 0) > (expensesByCategory[$1] ?? 0)
-            }
-            
-            if sortedCategories.isEmpty {
+            if data.isEmpty {
                 Text("Nessun dato budget o spese per questo mese.")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
                     .padding(.horizontal, 4)
             } else {
-                ForEach(sortedCategories, id: \.self) { cat in
-                    let spent = expensesByCategory[cat] ?? 0
-                    let budget = budgets[cat] ?? 0
-                    
+                ForEach(data, id: \.category) { item in
                     VStack(alignment: .leading, spacing: 6) {
                         HStack {
-                            Text(cat)
+                            Text(item.category)
                                 .font(.subheadline)
                                 .fontWeight(.medium)
                             Spacer()
@@ -219,15 +221,15 @@ struct MonthlyBudgetOverviewView: View {
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                             } else {
-                                Text("€ \(spent, specifier: "%.0f") / \(budget > 0 ? "\(Int(budget))" : "∞")")
+                                Text("€ \(item.spent, specifier: "%.0f") / \(item.budget > 0 ? "\(Int(item.budget))" : "∞")")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                             }
                         }
                         
                         GeometryReader { geo in
-                            let ratio = budget > 0 ? CGFloat(min(spent / budget, 1.0)) : (spent > 0 ? 1.0 : 0.0)
-                            let isOver = budget > 0 && spent > budget
+                            let ratio = item.budget > 0 ? CGFloat(min(item.spent / item.budget, 1.0)) : (item.spent > 0 ? 1.0 : 0.0)
+                            let isOver = item.budget > 0 && item.spent > item.budget
                             
                             ZStack(alignment: .leading) {
                                 RoundedRectangle(cornerRadius: 4)
@@ -235,7 +237,7 @@ struct MonthlyBudgetOverviewView: View {
                                     .frame(height: 8)
                                 
                                 RoundedRectangle(cornerRadius: 4)
-                                    .fill(isOver ? Color.red : (budget > 0 ? Color.blue : Color.orange))
+                                    .fill(isOver ? Color.red : (item.budget > 0 ? Color.blue : Color.orange))
                                     .frame(width: geo.size.width * ratio, height: 8)
                             }
                         }
