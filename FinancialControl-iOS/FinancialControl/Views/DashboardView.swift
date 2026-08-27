@@ -77,6 +77,9 @@ struct DashboardView: View {
                         .cornerRadius(16)
                     }
 
+                    // Budget Overview
+                    MonthlyBudgetOverviewView(isBalanceHidden: isBalanceHidden)
+
                     // Riepilogo Mensile
                     VStack(alignment: .leading, spacing: 12) {
                         HStack {
@@ -164,5 +167,86 @@ struct TransactionRowView: View {
         .padding(12)
         .background(Color(.secondarySystemBackground))
         .cornerRadius(14)
+    }
+}
+import SwiftUI
+
+struct MonthlyBudgetOverviewView: View {
+    @EnvironmentObject var viewModel: FinancialViewModel
+    var isBalanceHidden: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Budget Mensile vs Spese")
+                .font(.headline)
+                .padding(.horizontal, 4)
+
+            let currentMonthStr = String(format: "%04d-%02d", viewModel.selectedYear, viewModel.selectedMonth)
+            let monthTxs = viewModel.data.transactions.filter { $0.month == currentMonthStr && $0.amountEUR < 0 && $0.category != "__exchange__" && $0.category != "Trasferimenti" }
+            let budgets = viewModel.data.budgets[currentMonthStr] ?? viewModel.data.budgets["default"] ?? [:]
+            
+            // Calcola la somma per ogni categoria
+            var expensesByCategory: [String: Double] = [:]
+            for tx in monthTxs {
+                expensesByCategory[tx.category, default: 0] += abs(tx.amountEUR)
+            }
+            
+            // Trova tutte le categorie che hanno un budget o una spesa (escludendo Entrate)
+            let allCategories = Set(expensesByCategory.keys).union(budgets.keys).filter { $0 != "Entrate" && $0 != "Trasferimenti" }
+            
+            let sortedCategories = allCategories.sorted {
+                (expensesByCategory[$0] ?? 0) > (expensesByCategory[$1] ?? 0)
+            }
+            
+            if sortedCategories.isEmpty {
+                Text("Nessun dato budget o spese per questo mese.")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal, 4)
+            } else {
+                ForEach(sortedCategories, id: \.self) { cat in
+                    let spent = expensesByCategory[cat] ?? 0
+                    let budget = budgets[cat] ?? 0
+                    
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Text(cat)
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                            Spacer()
+                            if isBalanceHidden {
+                                Text("€ *** / ***")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            } else {
+                                Text("€ \(spent, specifier: "%.0f") / \(budget > 0 ? "\(Int(budget))" : "∞")")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        
+                        GeometryReader { geo in
+                            let ratio = budget > 0 ? CGFloat(min(spent / budget, 1.0)) : (spent > 0 ? 1.0 : 0.0)
+                            let isOver = budget > 0 && spent > budget
+                            
+                            ZStack(alignment: .leading) {
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(Color(.tertiarySystemGroupedBackground))
+                                    .frame(height: 8)
+                                
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(isOver ? Color.red : (budget > 0 ? Color.blue : Color.orange))
+                                    .frame(width: geo.size.width * ratio, height: 8)
+                            }
+                        }
+                        .frame(height: 8)
+                    }
+                    .padding(.vertical, 4)
+                }
+            }
+        }
+        .padding()
+        .background(Color(.secondarySystemBackground))
+        .cornerRadius(20)
     }
 }

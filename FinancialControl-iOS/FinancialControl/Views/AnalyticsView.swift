@@ -8,13 +8,22 @@ struct AnalyticsView: View {
         NavigationView {
             ScrollView {
                 VStack(spacing: 20) {
-                    // Year Picker
-                    Picker("Anno", selection: $viewModel.selectedYear) {
-                        ForEach(viewModel.availableYears, id: \.self) { yr in
-                            Text(String(yr)).tag(yr)
+                    // Pickers
+                    HStack {
+                        Picker("Anno", selection: $viewModel.selectedYear) {
+                            ForEach(viewModel.availableYears, id: \.self) { yr in
+                                Text(String(yr)).tag(yr)
+                            }
                         }
+                        .pickerStyle(.menu)
+                        
+                        Picker("Mese", selection: $viewModel.selectedMonth) {
+                            ForEach(1...12, id: \.self) { m in
+                                Text(Calendar.current.monthSymbols[m-1].capitalized).tag(m)
+                            }
+                        }
+                        .pickerStyle(.menu)
                     }
-                    .pickerStyle(.segmented)
                     .padding(.horizontal)
 
                     // Balance Evolution Chart with Forecast Line
@@ -61,7 +70,7 @@ struct AnalyticsView: View {
 
                     // Monthly Income vs Expenses Chart
                     VStack(alignment: .leading, spacing: 12) {
-                        Text("Uscite vs Entrate Mese per Mese")
+                        Text("Andamento Mensile — Entrate vs Uscite")
                             .font(.headline)
 
                         let monthlyItems = computeMonthlyTrend(year: viewModel.selectedYear)
@@ -87,6 +96,35 @@ struct AnalyticsView: View {
                     .padding()
                     .background(Color(.secondarySystemBackground))
                     .cornerRadius(20)
+                    
+                    // Spese per Categoria - Mensile
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Spese per Categoria — Mensile")
+                            .font(.headline)
+                        
+                        let categoryItems = computeCategoryExpenses(year: viewModel.selectedYear, month: viewModel.selectedMonth)
+                        
+                        if categoryItems.isEmpty {
+                            Text("Nessuna spesa questo mese.")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                                .padding(.top, 8)
+                        } else {
+                            Chart(categoryItems) { item in
+                                BarMark(
+                                    x: .value("Importo", item.amount),
+                                    y: .value("Categoria", item.category)
+                                )
+                                .foregroundStyle(by: .value("Categoria", item.category))
+                                .cornerRadius(4)
+                            }
+                            .chartLegend(.hidden)
+                            .frame(height: max(200, CGFloat(categoryItems.count * 40)))
+                        }
+                    }
+                    .padding()
+                    .background(Color(.secondarySystemBackground))
+                    .cornerRadius(20)
                 }
                 .padding()
             }
@@ -106,6 +144,12 @@ struct AnalyticsView: View {
         let monthLabel: String
         let income: Double
         let expenses: Double
+    }
+    
+    struct CategoryPoint: Identifiable {
+        var id: String { category }
+        let category: String
+        let amount: Double
     }
 
     private func computeBalancePoints(year: Int) -> [BalancePoint] {
@@ -176,5 +220,18 @@ struct AnalyticsView: View {
             points.append(MonthlyTrendPoint(monthLabel: label, income: inc, expenses: exp))
         }
         return points
+    }
+    
+    private func computeCategoryExpenses(year: Int, month: Int) -> [CategoryPoint] {
+        let monthStr = String(format: "%04d-%02d", year, month)
+        let txs = viewModel.data.transactions.filter { $0.month == monthStr && $0.amountEUR < 0 && $0.category != "__exchange__" && $0.category != "Trasferimenti" }
+        
+        var dict: [String: Double] = [:]
+        for tx in txs {
+            dict[tx.category, default: 0] += abs(tx.amountEUR)
+        }
+        
+        return dict.map { CategoryPoint(category: $0.key, amount: $0.value) }
+            .sorted { $0.amount > $1.amount }
     }
 }
