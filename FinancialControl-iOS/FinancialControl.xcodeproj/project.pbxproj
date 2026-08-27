@@ -28,6 +28,7 @@
 		1001000F29F1A00000000001 /* Services/FirebaseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2001000F29F1A00000000001 /* Services/FirebaseService.swift */; };
 		1001001029F1A00000000001 /* Views/LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2001001029F1A00000000001 /* Views/LoginView.swift */; };
 		1001001129F1A00000000001 /* Views/RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2001001129F1A00000000001 /* Views/RootView.swift */; };
+		9001000229F1A00000000001 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 9001000129F1A00000000001 /* GoogleService-Info.plist */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -49,6 +50,7 @@
 		2001000F29F1A00000000001 /* Services/FirebaseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/FirebaseService.swift; sourceTree = "<group>"; };
 		2001001029F1A00000000001 /* Views/LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/LoginView.swift; sourceTree = "<group>"; };
 		2001001129F1A00000000001 /* Views/RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/RootView.swift; sourceTree = "<group>"; };
+		9001000129F1A00000000001 /* GoogleService-Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = "../GoogleService-Info.plist"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -77,6 +79,7 @@
 		4001000129F1A00000000001 /* FinancialControl */ = {
 			isa = PBXGroup;
 			children = (
+								9001000129F1A00000000001 /* GoogleService-Info.plist */,
 				2001000129F1A00000000001 /* FinancialControlApp.swift */,
 				2001000229F1A00000000001 /* Models/FinancialData.swift */,
 				2001000329F1A00000000001 /* Services/KeychainService.swift */,
@@ -114,6 +117,7 @@
 			buildConfigurationList = 7001000029F1A00000000001 /* Build configuration list for PBXNativeTarget "FinancialControl" */;
 			buildPhases = (
 				6001000029F1A00000000001 /* Sources */,
+				9001000329F1A00000000001 /* Resources */,
 				3001000029F1A00000000001 /* Frameworks */,
 			);
 			buildRules = (
@@ -161,6 +165,17 @@
 		};
 /* End PBXProject section */
 
+
+/* Begin PBXResourcesBuildPhase section */
+		9001000329F1A00000000001 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				9001000229F1A00000000001 /* GoogleService-Info.plist in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
 /* Begin PBXSourcesBuildPhase section */
 		6001000029F1A00000000001 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
