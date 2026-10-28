@@ -1,16 +1,18 @@
 <!DOCTYPE html>
-<html lang="it" data-theme="dark">
+<html lang="it" data-theme="light">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>FinancialControl — Dashboard</title>
   <meta name="description" content="Piattaforma personale per il controllo delle finanze: budget, categorie, estratti conto Revolut e Intesa San Paolo.">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230a84ff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><line x1='12' y1='1' x2='12' y2='23'></line><path d='M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6'></path></svg>">
+  <meta name="theme-color" content="#f6f6f8" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0e0e11" media="(prefers-color-scheme: dark)">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='9' fill='%23f23a4c'/><path d='M9 11.5h11.5a2.5 2.5 0 0 1 2.5 2.5v7a2.5 2.5 0 0 1-2.5 2.5H11.5A2.5 2.5 0 0 1 9 21z' fill='none' stroke='white' stroke-width='2.2'/><path d='M9 11.5 18.5 8' stroke='white' stroke-width='2.2' stroke-linecap='round'/><circle cx='19' cy='17.5' r='1.6' fill='white'/></svg>">
 
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
   <!-- CDN Libraries -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
@@ -20,7 +22,7 @@
   <!-- Lucide Icons -->
   <script src="https://cdn.jsdelivr.net/npm/lucide@0.395.0/dist/umd/lucide.min.js"></script>
 
-  <link rel="stylesheet" href="css/styles.css?v=1.3.0">
+  <link rel="stylesheet" href="css/styles.css?v=2.0.0">
 </head>
 <body>
 
@@ -30,21 +32,22 @@
 <div id="toast-container"></div>
 
 <div id="screen-loading" class="screen">
-  <div style="display:flex;flex-direction:column;align-items:center;gap:1.5rem;color:var(--text-muted)">
+  <div class="loading-box">
+    <div class="brand-mark lg"><i data-lucide="wallet" class="lucide-icon"></i></div>
     <div class="loading-spinner"></div>
-    <p style="font-size:1rem">Caricamento in corso…</p>
+    <p>Caricamento in corso…</p>
   </div>
 </div>
 
 <!-- ══════════════════════════════════════════════════════════ -->
 <!--  SCREEN: LOGIN                                            -->
 <!-- ══════════════════════════════════════════════════════════ -->
-<div id="screen-login" class="screen">
+<div id="screen-login" class="screen auth-screen">
   <div class="auth-card">
     <div class="auth-logo">
-      <div class="logo-icon"><i data-lucide="wallet" class="lucide-icon"></i></div>
-      <h1>FinancialControl</h1>
-      <p>Il tuo controllo finanziario personale</p>
+      <div class="brand-mark lg"><i data-lucide="wallet" class="lucide-icon"></i></div>
+      <h1>Bentornato</h1>
+      <p>Accedi a FinancialControl per vedere entrate, spese e budget.</p>
     </div>
     <form id="login-form">
       <div class="form-group">
@@ -55,22 +58,22 @@
         <label for="login-pw">Password</label>
         <input type="password" id="login-pw" placeholder="La tua password" autocomplete="current-password" required>
       </div>
-      <button type="submit" id="login-btn" class="btn btn-primary btn-full">Accedi</button>
+      <button type="submit" id="login-btn" class="btn btn-primary btn-full btn-lg">Accedi</button>
     </form>
-    <p class="auth-hint">Non hai un account? <a href="#" id="show-setup-link">Registrati</a></p>
     <p class="auth-hint"><a href="#" id="forgot-pw-link">Password dimenticata?</a></p>
+    <p class="auth-hint">Non hai un account? <a href="#" id="show-setup-link">Registrati</a></p>
   </div>
 </div>
 
 <!-- ══════════════════════════════════════════════════════════ -->
 <!--  SCREEN: SETUP (first time)                               -->
 <!-- ══════════════════════════════════════════════════════════ -->
-<div id="screen-setup" class="screen hidden">
+<div id="screen-setup" class="screen auth-screen hidden">
   <div class="auth-card">
     <div class="auth-logo">
-      <div class="logo-icon"><i data-lucide="user-plus" class="lucide-icon"></i></div>
-      <h1>Crea Account</h1>
-      <p>Registrati per iniziare a tracciare le tue finanze</p>
+      <div class="brand-mark lg"><i data-lucide="user-plus" class="lucide-icon"></i></div>
+      <h1>Crea account</h1>
+      <p>Registrati per iniziare a tracciare le tue finanze.</p>
     </div>
     <form id="setup-form">
       <div class="form-group">
@@ -79,14 +82,14 @@
       </div>
       <div class="form-group">
         <label for="setup-pw">Password</label>
-        <input type="password" id="setup-pw" placeholder="Scegli una password (min 6 caratteri)" autocomplete="new-password" required>
+        <input type="password" id="setup-pw" placeholder="Almeno 6 caratteri" autocomplete="new-password" required>
       </div>
       <div class="form-group">
-        <label for="setup-confirm">Conferma Password</label>
+        <label for="setup-confirm">Conferma password</label>
         <input type="password" id="setup-confirm" placeholder="Ripeti la password" autocomplete="new-password" required>
       </div>
-      <button type="submit" class="btn btn-primary btn-full">
-        <span>Crea Account</span>
+      <button type="submit" class="btn btn-primary btn-full btn-lg">
+        <span>Crea account</span>
         <i data-lucide="arrow-right" class="lucide-icon icon-sm"></i>
       </button>
     </form>
@@ -99,20 +102,24 @@
 <!-- ══════════════════════════════════════════════════════════ -->
 <div id="screen-app" class="screen hidden">
 
-  <!-- Mobile sidebar overlay -->
+  <!-- Mobile sheet overlay -->
   <div id="sidebar-overlay"></div>
 
-  <!-- ── SIDEBAR ─────────────────────────────────────────── -->
-  <nav id="sidebar">
+  <!-- ── SIDEBAR (bottom sheet "Altro" on mobile) ─────────── -->
+  <nav id="sidebar" aria-label="Navigazione principale">
+    <div class="sheet-handle"></div>
     <div class="sidebar-brand">
-      <div class="brand-icon"><i data-lucide="wallet" class="lucide-icon"></i></div>
+      <div class="brand-mark"><i data-lucide="wallet" class="lucide-icon"></i></div>
       <div class="brand-text">Financial<span>Control</span></div>
     </div>
 
     <div class="nav-section">
       <div class="nav-label">Principale</div>
       <a href="#" class="nav-link active" data-view="dashboard" id="nav-dashboard">
-        <span class="nav-icon"><i data-lucide="layout-dashboard" class="lucide-icon"></i></span><span>Dashboard</span>
+        <span class="nav-icon"><i data-lucide="home" class="lucide-icon"></i></span><span>Home</span>
+      </a>
+      <a href="#" class="nav-link" data-view="transactions" id="nav-transactions">
+        <span class="nav-icon"><i data-lucide="arrow-left-right" class="lucide-icon"></i></span><span>Movimenti</span>
       </a>
       <a href="#" class="nav-link" data-view="budget" id="nav-budget">
         <span class="nav-icon"><i data-lucide="piggy-bank" class="lucide-icon"></i></span><span>Budget</span>
@@ -120,35 +127,27 @@
       <a href="#" class="nav-link" data-view="wallets" id="nav-wallets">
         <span class="nav-icon"><i data-lucide="wallet-cards" class="lucide-icon"></i></span><span>Wallet</span>
       </a>
+      <a href="#" class="nav-link" data-view="analytics" id="nav-analytics">
+        <span class="nav-icon"><i data-lucide="line-chart" class="lucide-icon"></i></span><span>Analisi</span>
+      </a>
+    </div>
+
+    <div class="nav-section">
+      <div class="nav-label">Strumenti</div>
       <a href="#" class="nav-link" data-view="import" id="nav-import">
         <span class="nav-icon"><i data-lucide="file-down" class="lucide-icon"></i></span><span>Importa</span>
       </a>
-      <a href="#" class="nav-link" data-view="transactions" id="nav-transactions">
-        <span class="nav-icon"><i data-lucide="credit-card" class="lucide-icon"></i></span><span>Transazioni</span>
-      </a>
-    </div>
-
-    <div class="nav-section">
-      <div class="nav-label">Analisi</div>
-      <a href="#" class="nav-link" data-view="analytics" id="nav-analytics">
-        <span class="nav-icon"><i data-lucide="trending-up" class="lucide-icon"></i></span><span>Analytics</span>
-      </a>
-    </div>
-
-    <div class="nav-section">
-      <div class="nav-label">Config</div>
       <a href="#" class="nav-link" data-view="settings" id="nav-settings">
         <span class="nav-icon"><i data-lucide="settings" class="lucide-icon"></i></span><span>Impostazioni</span>
       </a>
     </div>
 
     <div class="sidebar-footer">
-      <!-- Theme Toggle -->
       <button id="theme-toggle-btn" class="theme-toggle-sidebar" title="Cambia tema">
         <span class="nav-icon"><i data-lucide="sun" class="lucide-icon" id="theme-icon-light"></i><i data-lucide="moon" class="lucide-icon" id="theme-icon-dark" style="display:none"></i></span>
-        <span>Tema Chiaro</span>
+        <span>Tema chiaro</span>
       </button>
-      <button id="logout-btn"><span class="nav-icon"><i data-lucide="log-out" class="lucide-icon"></i></span><span>Logout</span></button>
+      <button id="logout-btn"><span class="nav-icon"><i data-lucide="log-out" class="lucide-icon"></i></span><span>Esci</span></button>
     </div>
   </nav>
 
@@ -158,23 +157,23 @@
     <!-- Header -->
     <header id="app-header">
       <div class="header-left">
-        <button id="sidebar-toggle" title="Nascondi/mostra sidebar">
+        <button id="sidebar-toggle" class="icon-btn" title="Nascondi/mostra menu">
           <i data-lucide="panel-left" class="lucide-icon"></i>
         </button>
-        <span id="page-title">Dashboard</span>
+        <span id="page-title">Home</span>
       </div>
       <div class="header-right">
         <div id="month-nav" style="display:flex">
-          <button id="prev-month-btn" title="Mese precedente">
+          <button id="prev-month-btn" title="Mese precedente" aria-label="Mese precedente">
             <i data-lucide="chevron-left" class="lucide-icon icon-sm"></i>
           </button>
           <span id="month-label">—</span>
-          <button id="next-month-btn" title="Mese successivo">
+          <button id="next-month-btn" title="Mese successivo" aria-label="Mese successivo">
             <i data-lucide="chevron-right" class="lucide-icon icon-sm"></i>
           </button>
         </div>
         <button id="header-sync-btn" title="Sincronizza con GitHub">
-          <i data-lucide="cloud" class="lucide-icon icon-sm"></i> Sync
+          <i data-lucide="cloud" class="lucide-icon icon-sm"></i> <span>Sync</span>
         </button>
       </div>
     </header>
@@ -187,86 +186,85 @@
       <!-- ═══════════════════════════════════════════════════ -->
       <section id="view-dashboard" class="view">
 
-        <!-- KPI Row -->
-        <div class="kpi-grid">
-          <div class="kpi-card danger">
-            <span class="kpi-label">Uscite del Mese</span>
-            <span class="kpi-value negative" id="kpi-expenses">€ 0</span>
+        <div class="dash-top">
+          <div class="hero-card">
+            <div class="hero-label">Spese del mese</div>
+            <div class="hero-amount" id="kpi-expenses">€ 0</div>
+            <div class="hero-progress budget-progress">
+              <div class="bar-track"><div class="bar-fill ok" id="budget-bar-fill" style="width:0%"></div></div>
+              <div class="bar-label" id="budget-bar-label">0% del budget mensile</div>
+            </div>
+            <div class="hero-stats">
+              <div class="hero-stat">
+                <span class="hero-stat-label"><i data-lucide="arrow-down-left" class="lucide-icon icon-xs"></i> Entrate</span>
+                <span class="kpi-value" id="kpi-income">€ 0</span>
+              </div>
+              <div class="hero-stat" title="Budget rimanente del mese">
+                <span class="hero-stat-label"><i data-lucide="piggy-bank" class="lucide-icon icon-xs"></i> Rimasto</span>
+                <span class="kpi-value" id="kpi-remaining">€ 0</span>
+              </div>
+              <div class="hero-stat">
+                <span class="hero-stat-label" title="Categorie oltre il budget"><i data-lucide="flame" class="lucide-icon icon-xs"></i> Sforate</span>
+                <span class="kpi-value" id="kpi-overbudget">0</span>
+              </div>
+            </div>
           </div>
-          <div class="kpi-card success">
-            <span class="kpi-label">Entrate del Mese</span>
-            <span class="kpi-value positive" id="kpi-income">€ 0</span>
-          </div>
-          <div class="kpi-card">
-            <span class="kpi-label">Budget Rimanente</span>
-            <span class="kpi-value" id="kpi-remaining">€ 0</span>
-          </div>
-          <div class="kpi-card warning">
-            <span class="kpi-label">Categorie Over Budget</span>
-            <span class="kpi-value" id="kpi-overbudget">0</span>
-          </div>
-        </div>
 
-        <!-- Budget Progress -->
-        <div class="card budget-progress mb-15">
-          <div class="card-title">Utilizzo Budget Mensile</div>
-          <div class="bar-track"><div class="bar-fill ok" id="budget-bar-fill" style="width:0%"></div></div>
-          <div class="bar-label" id="budget-bar-label">0% del budget mensile</div>
+          <div class="quick-actions card">
+            <button class="qa" onclick="openAddExpenseModal()">
+              <span class="qa-icon accent"><i data-lucide="plus" class="lucide-icon"></i></span><span>Nuova spesa</span>
+            </button>
+            <button class="qa" onclick="navigate('import')">
+              <span class="qa-icon"><i data-lucide="file-down" class="lucide-icon"></i></span><span>Importa</span>
+            </button>
+            <button class="qa" onclick="navigate('budget')">
+              <span class="qa-icon"><i data-lucide="piggy-bank" class="lucide-icon"></i></span><span>Budget</span>
+            </button>
+            <button class="qa" onclick="navigate('analytics')">
+              <span class="qa-icon"><i data-lucide="line-chart" class="lucide-icon"></i></span><span>Analisi</span>
+            </button>
+          </div>
         </div>
 
         <!-- Charts -->
-        <div class="charts-row mb-15">
+        <div class="charts-row">
           <div class="chart-card">
-            <h3>Spese per Categoria</h3>
+            <h3>Spese per categoria</h3>
             <div id="chart-donut-wrap" class="chart-wrap">
               <canvas id="chart-donut"></canvas>
             </div>
           </div>
           <div class="chart-card">
-            <h3>Budget vs Effettivo</h3>
-            <div class="chart-wrap" style="height:320px">
+            <h3>Budget vs effettivo</h3>
+            <div class="chart-wrap chart-budget-wrap" id="chart-budget-wrap">
               <canvas id="chart-budget"></canvas>
             </div>
           </div>
         </div>
 
         <!-- Monthly Transactions List -->
-        <div class="card">
-          <div class="section-header mb-1" style="flex-wrap:wrap;gap:0.75rem">
+        <div class="card list-card">
+          <div class="card-head">
             <div>
-              <span class="section-title">Tutte le Transazioni del Mese</span>
-              <span class="muted small" id="dash-tx-count" style="margin-left:0.5rem"></span>
+              <h3 class="card-heading">Movimenti del mese</h3>
+              <span class="muted small" id="dash-tx-count"></span>
             </div>
-            <div style="display:flex;gap:0.5rem;align-items:center">
-              <button class="btn btn-primary btn-sm" id="dash-add-exp-btn" onclick="openAddExpenseModal()">
-                <i data-lucide="plus" class="lucide-icon icon-sm"></i> Nuova Spesa
-              </button>
-            </div>
+            <button class="btn btn-primary btn-sm" id="dash-add-exp-btn" onclick="openAddExpenseModal()">
+              <i data-lucide="plus" class="lucide-icon icon-sm"></i> Nuova spesa
+            </button>
           </div>
 
-          <!-- Quick Filters in Dashboard -->
-          <div style="display:flex;gap:0.75rem;margin-bottom:1rem;flex-wrap:wrap;align-items:center">
-            <div class="search-input-wrap" style="flex:1;min-width:180px">
+          <div class="filter-bar">
+            <div class="search-input-wrap">
               <i data-lucide="search" class="lucide-icon icon-sm search-icon"></i>
-              <input type="text" id="dash-tx-search" placeholder="Cerca nel mese…" class="input-sm input-with-icon">
+              <input type="text" id="dash-tx-search" placeholder="Cerca nel mese…" class="input-with-icon">
             </div>
-            <select id="dash-tx-cat" class="cat-select" style="min-width:160px;padding:0.4rem 0.6rem">
+            <select id="dash-tx-cat" class="select-styled">
               <option value="">Tutte le categorie</option>
             </select>
           </div>
 
-          <div style="overflow-x:auto;max-height:550px">
-            <table>
-              <thead>
-                <tr>
-                  <th>Data</th><th>Descrizione & Note</th><th>Categoria</th><th>Importo EUR</th><th>Fonte</th><th style="width:70px">Azioni</th>
-                </tr>
-              </thead>
-              <tbody id="recent-tx-body">
-                <tr><td colspan="6" class="empty-row">Nessuna transazione questo mese</td></tr>
-              </tbody>
-            </table>
-          </div>
+          <div class="tx-list tx-list-scroll" id="recent-tx-body"></div>
         </div>
 
       </section>
@@ -276,73 +274,65 @@
       <!-- ═══════════════════════════════════════════════════ -->
       <section id="view-budget" class="view hidden">
 
-        <!-- Header Controls -->
-        <div class="section-header mb-15" style="flex-wrap:wrap;gap:1rem">
-          <div>
-            <h2 class="section-title">Gestione Budget Mensile</h2>
-            <p class="muted small" style="margin-top:0.2rem">Imposta e gestisci i limiti di spesa mensili per ciascuna categoria</p>
-          </div>
-          <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap">
+        <div class="page-head">
+          <p class="page-sub">Imposta i limiti di spesa mensili per ciascuna categoria.</p>
+          <div class="page-actions">
             <select id="bg-mode-select" class="select-styled" onchange="switchBgMode(this.value)">
-              <option value="month">Mese Selezionato</option>
-              <option value="default">Predefinito (Baseline)</option>
+              <option value="month">Mese selezionato</option>
+              <option value="default">Predefinito (baseline)</option>
             </select>
-            <div id="bg-month-picker" style="display:flex;align-items:center;gap:0.5rem;background:var(--input-bg);padding:0.35rem 0.85rem;border-radius:99px;border:1px solid var(--glass-b)">
-              <button class="btn-icon" onclick="prevBgMonth()" title="Mese precedente"><i data-lucide="chevron-left" class="lucide-icon icon-sm"></i></button>
-              <span id="bg-month-label" style="font-weight:600;font-size:0.9rem;min-width:130px;text-align:center">—</span>
-              <button class="btn-icon" onclick="nextBgMonth()" title="Mese successivo"><i data-lucide="chevron-right" class="lucide-icon icon-sm"></i></button>
+            <div id="bg-month-picker" class="pill-nav">
+              <button class="icon-btn sm" onclick="prevBgMonth()" title="Mese precedente"><i data-lucide="chevron-left" class="lucide-icon icon-sm"></i></button>
+              <span id="bg-month-label">—</span>
+              <button class="icon-btn sm" onclick="nextBgMonth()" title="Mese successivo"><i data-lucide="chevron-right" class="lucide-icon icon-sm"></i></button>
             </div>
           </div>
         </div>
 
-        <!-- KPI Cards Summary -->
-        <div class="kpi-grid mb-15">
+        <div class="kpi-grid">
           <div class="kpi-card">
-            <span class="kpi-label">Budget Totale Allocato</span>
+            <span class="kpi-label">Budget allocato</span>
             <span class="kpi-value" id="bg-kpi-total">€ 0</span>
           </div>
           <div class="kpi-card danger">
-            <span class="kpi-label">Spesa Effettiva Mese</span>
-            <span class="kpi-value negative" id="bg-kpi-actual">€ 0</span>
+            <span class="kpi-label">Speso nel mese</span>
+            <span class="kpi-value" id="bg-kpi-actual">€ 0</span>
           </div>
           <div class="kpi-card success">
-            <span class="kpi-label">Budget Rimanente</span>
+            <span class="kpi-label">Rimanente</span>
             <span class="kpi-value" id="bg-kpi-remaining">€ 0</span>
           </div>
           <div class="kpi-card warning">
-            <span class="kpi-label">Categorie Over Budget</span>
+            <span class="kpi-label">Categorie sforate</span>
             <span class="kpi-value" id="bg-kpi-over">0</span>
           </div>
         </div>
 
-        <!-- Budget Action Bar & Table Card -->
-        <div class="card mb-15">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;flex-wrap:wrap;gap:0.75rem">
-            <div>
-              <span class="card-title" style="margin-bottom:0">Dettaglio Categorie & Limiti</span>
-            </div>
-            <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap">
+        <div class="card">
+          <div class="card-head">
+            <h3 class="card-heading">Categorie e limiti</h3>
+            <div class="btn-row">
               <button class="btn btn-secondary btn-sm" id="bg-copy-def-btn" onclick="copyDefaultToCurrentBg()">
-                <i data-lucide="copy" class="lucide-icon icon-sm"></i> Copia da Predefinito
+                <i data-lucide="copy" class="lucide-icon icon-sm"></i> Copia predefinito
               </button>
               <button class="btn btn-secondary btn-sm" id="bg-reset-btn" onclick="resetCurrentBgMonth()">
-                <i data-lucide="rotate-ccw" class="lucide-icon icon-sm"></i> Ripristina Predefinito
+                <i data-lucide="rotate-ccw" class="lucide-icon icon-sm"></i> Ripristina
               </button>
               <button class="btn btn-primary btn-sm" onclick="saveBgViewBudgets()">
-                <i data-lucide="save" class="lucide-icon icon-sm"></i> Salva Budget
+                <i data-lucide="save" class="lucide-icon icon-sm"></i> Salva budget
               </button>
             </div>
           </div>
 
-          <div style="overflow-x:auto">
-            <table>
+          <div class="table-wrap">
+            <table class="budget-table-v">
               <thead>
                 <tr>
                   <th>Categoria</th>
-                  <th style="width:160px">Budget Previsto (€)</th>
-                  <th style="width:140px">Speso Effettivo</th>
-                  <th style="width:140px">Rimanente</th>
-                  <th style="width:200px">Utilizzo %</th>
+                  <th style="width:150px">Budget (€)</th>
+                  <th style="width:130px">Speso</th>
+                  <th style="width:130px">Rimanente</th>
+                  <th style="width:200px">Utilizzo</th>
                 </tr>
               </thead>
               <tbody id="bg-table-body">
@@ -359,48 +349,47 @@
       <!-- ═══════════════════════════════════════════════════ -->
       <section id="view-wallets" class="view hidden">
 
-        <div class="section-header mb-15" style="flex-wrap:wrap;gap:1rem">
-          <div>
-            <h2 class="section-title">Wallet</h2>
-            <p class="muted small" style="margin-top:0.2rem">Fondi dedicati con un importo stanziato: assegna le spese e monitora quanto resta</p>
+        <div class="page-head">
+          <p class="page-sub">Fondi dedicati con un importo stanziato: assegna le spese e guarda quanto resta.</p>
+          <div class="page-actions">
+            <button class="btn btn-primary btn-sm" onclick="openWalletModal()">
+              <i data-lucide="plus" class="lucide-icon icon-sm"></i> Nuovo wallet
+            </button>
           </div>
-          <button class="btn btn-primary btn-sm" onclick="openWalletModal()">
-            <i data-lucide="plus" class="lucide-icon icon-sm"></i> Nuovo Wallet
-          </button>
         </div>
 
-        <div class="wallet-grid mb-15" id="wallet-list"></div>
+        <div class="wallet-grid" id="wallet-list"></div>
 
         <div id="wallet-detail" class="hidden">
-          <div class="card mb-15 wallet-detail-head">
+          <div class="card wallet-detail-head">
             <div class="wallet-detail-title">
-              <span class="wallet-dot lg" id="wd-dot"></span>
+              <span class="wallet-avatar" id="wd-dot"><i data-lucide="wallet-cards" class="lucide-icon"></i></span>
               <div style="min-width:0">
-                <h2 class="section-title" id="wd-name">—</h2>
+                <h2 class="wallet-detail-name" id="wd-name">—</h2>
                 <p class="muted small" id="wd-meta"></p>
               </div>
             </div>
-            <div style="display:flex;gap:0.5rem;flex-wrap:wrap">
-              <button class="btn btn-secondary btn-sm" onclick="pickTxsForWallet(S.walletId)">
-                <i data-lucide="list-checks" class="lucide-icon icon-sm"></i> Aggiungi spese esistenti
-              </button>
+            <div class="wallet-detail-actions">
               <button class="btn btn-primary btn-sm" onclick="openAddExpenseModal(S.walletId)">
-                <i data-lucide="plus" class="lucide-icon icon-sm"></i> Movimento nel wallet
+                <i data-lucide="plus" class="lucide-icon icon-sm"></i> Movimento
+              </button>
+              <button class="btn btn-secondary btn-sm" onclick="pickTxsForWallet(S.walletId)">
+                <i data-lucide="list-checks" class="lucide-icon icon-sm"></i> Aggiungi esistenti
               </button>
               <button class="btn btn-secondary btn-sm" onclick="openWalletModal(S.walletId)">
                 <i data-lucide="pencil" class="lucide-icon icon-sm"></i> Modifica
               </button>
-              <button class="btn btn-danger btn-sm" onclick="deleteWallet(S.walletId)">
+              <button class="btn btn-danger-soft btn-sm" onclick="deleteWallet(S.walletId)">
                 <i data-lucide="trash-2" class="lucide-icon icon-sm"></i> Elimina
               </button>
             </div>
           </div>
 
-          <div class="wallet-status mb-15" id="wd-status"></div>
+          <div class="wallet-status" id="wd-status"></div>
 
-          <div class="kpi-grid mb-15">
+          <div class="kpi-grid">
             <div class="kpi-card">
-              <span class="kpi-label">Base Iniziale</span>
+              <span class="kpi-label">Base iniziale</span>
               <span class="kpi-value" id="wd-kpi-allocated">€ 0</span>
             </div>
             <div class="kpi-card success">
@@ -409,49 +398,40 @@
             </div>
             <div class="kpi-card danger">
               <span class="kpi-label">Uscite (−)</span>
-              <span class="kpi-value negative" id="wd-kpi-spent">€ 0</span>
+              <span class="kpi-value" id="wd-kpi-spent">€ 0</span>
             </div>
             <div class="kpi-card" id="wd-kpi-remaining-card">
-              <span class="kpi-label">Saldo Rimanente</span>
+              <span class="kpi-label">Saldo rimanente</span>
               <span class="kpi-value" id="wd-kpi-remaining">€ 0</span>
               <span class="muted small" id="wd-kpi-formula"></span>
             </div>
           </div>
 
-          <div class="card budget-progress mb-15">
-            <div class="card-title">Utilizzo del Wallet</div>
+          <div class="card budget-progress">
+            <div class="card-heading-sm">Utilizzo del wallet</div>
             <div class="bar-track"><div class="bar-fill ok" id="wd-bar-fill" style="width:0%"></div></div>
             <div class="bar-label" id="wd-bar-label">0% utilizzato</div>
           </div>
 
-          <div class="charts-row mb-15">
+          <div class="charts-row">
             <div class="chart-card">
-              <h3>Spese per Categoria</h3>
+              <h3>Spese per categoria</h3>
               <div id="wd-donut-wrap" class="chart-wrap"><canvas id="chart-wallet-donut"></canvas></div>
             </div>
             <div class="chart-card">
-              <h3>Andamento del Saldo</h3>
+              <h3>Andamento del saldo</h3>
               <div id="wd-timeline-wrap" class="chart-wrap"><canvas id="chart-wallet-timeline"></canvas></div>
             </div>
           </div>
 
-          <div class="card">
-            <div class="section-header mb-1">
+          <div class="card list-card">
+            <div class="card-head">
               <div>
-                <span class="section-title">Transazioni del Wallet</span>
-                <span class="muted small" id="wd-tx-count" style="margin-left:0.5rem"></span>
+                <h3 class="card-heading">Movimenti del wallet</h3>
+                <span class="muted small" id="wd-tx-count"></span>
               </div>
             </div>
-            <div style="overflow-x:auto;max-height:550px">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Data</th><th>Descrizione & Note</th><th>Categoria</th><th>Importo EUR</th><th>Fonte</th><th style="width:70px">Azioni</th>
-                  </tr>
-                </thead>
-                <tbody id="wd-tx-body"></tbody>
-              </table>
-            </div>
+            <div class="tx-list tx-list-scroll" id="wd-tx-body"></div>
           </div>
         </div>
 
@@ -462,11 +442,13 @@
       <!-- ═══════════════════════════════════════════════════ -->
       <section id="view-import" class="view hidden">
 
-        <div class="section-header mb-15">
-          <h2 class="section-title">Importa Estratti Conto</h2>
-          <button class="btn btn-secondary btn-sm" id="imp-reset-btn">
-            <i data-lucide="rotate-ccw" class="lucide-icon icon-sm"></i> Ricomincia
-          </button>
+        <div class="page-head">
+          <p class="page-sub">Carica gli estratti conto: controlli duplicati e categorie prima di salvare.</p>
+          <div class="page-actions">
+            <button class="btn btn-secondary btn-sm" id="imp-reset-btn">
+              <i data-lucide="rotate-ccw" class="lucide-icon icon-sm"></i> Ricomincia
+            </button>
+          </div>
         </div>
 
         <!-- Step Indicators -->
@@ -478,7 +460,7 @@
           <div class="step-sep"></div>
           <div class="step" data-s="2">
             <div class="step-num">2</div>
-            <span class="step-name">Categorizza</span>
+            <span class="step-name">Controlla</span>
           </div>
           <div class="step-sep"></div>
           <div class="step" data-s="3">
@@ -489,32 +471,27 @@
 
         <!-- STEP 1: Upload files -->
         <div class="imp-step" id="imp-step-1">
-          <p class="muted mb-15" style="font-size:0.875rem">
-            Carica gli estratti conto. Puoi caricare uno o più file insieme.
-            Per la conversione USD→EUR carica sia il file EUR che USD di Revolut.
+          <p class="muted imp-intro">
+            Puoi caricare uno o più file insieme. Per la conversione USD→EUR carica sia il file EUR che quello USD di Revolut.
           </p>
           <div class="dz-grid">
-            <!-- Revolut EUR -->
             <div class="dropzone" id="dz-rev-eur">
-              <div class="dz-icon"><i data-lucide="circle-dollar-sign" class="lucide-icon lucide-lg" style="color:var(--success)"></i></div>
+              <div class="dz-icon tint-green"><i data-lucide="euro" class="lucide-icon"></i></div>
               <div class="dz-label">Revolut EUR</div>
               <div class="dz-hint">File .csv (valuta EUR)</div>
             </div>
-            <!-- Revolut USD -->
             <div class="dropzone" id="dz-rev-usd">
-              <div class="dz-icon"><i data-lucide="circle-dollar-sign" class="lucide-icon lucide-lg" style="color:var(--primary)"></i></div>
+              <div class="dz-icon tint-blue"><i data-lucide="dollar-sign" class="lucide-icon"></i></div>
               <div class="dz-label">Revolut USD</div>
               <div class="dz-hint">File .csv (valuta USD)</div>
             </div>
-            <!-- Intesa -->
             <div class="dropzone" id="dz-intesa">
-              <div class="dz-icon"><i data-lucide="landmark" class="lucide-icon lucide-lg" style="color:var(--purple)"></i></div>
+              <div class="dz-icon tint-purple"><i data-lucide="landmark" class="lucide-icon"></i></div>
               <div class="dz-label">Intesa San Paolo</div>
               <div class="dz-hint">File .xlsx da Area Clienti</div>
             </div>
-            <!-- Satispay -->
             <div class="dropzone" id="dz-satispay">
-              <div class="dz-icon"><i data-lucide="smartphone" class="lucide-icon lucide-lg" style="color:var(--danger)"></i></div>
+              <div class="dz-icon tint-accent"><i data-lucide="smartphone" class="lucide-icon"></i></div>
               <div class="dz-label">Satispay</div>
               <div class="dz-hint">Export .xlsx o .csv dall'app</div>
             </div>
@@ -533,39 +510,40 @@
 
           <!-- Manual rate row (shown only when needed) -->
           <div class="manual-rate-row hidden" id="manual-rate-row">
-            <label><i data-lucide="alert-triangle" class="lucide-icon icon-sm" style="color:var(--warning)"></i> Tasso USD/EUR non trovato. Inserisci manualmente (USD per 1 EUR):</label>
+            <label><i data-lucide="alert-triangle" class="lucide-icon icon-sm"></i> Tasso USD/EUR non trovato. Inseriscilo (USD per 1 EUR):</label>
             <input type="number" id="manual-rate-input" placeholder="es. 1.09" step="0.0001" min="0.5" max="2">
             <button class="btn btn-secondary btn-sm" id="apply-manual-rate">Applica</button>
           </div>
 
-          <!-- Bulk actions -->
-          <div class="import-controls">
-            <label><input type="checkbox" id="select-all-imp"> Seleziona tutti</label>
-            <select id="bulk-cat-select" class="cat-select" style="min-width:180px">
-              <option value="">Assegna categoria ai selezionati…</option>
-            </select>
-            <button class="btn btn-secondary btn-sm" id="apply-bulk-cat">Applica</button>
-            <span class="imp-count" id="imp-count-label" style="margin-left:auto"></span>
+          <div class="card list-card">
+            <!-- Bulk actions -->
+            <div class="import-controls">
+              <label class="check-label"><input type="checkbox" id="select-all-imp"> Seleziona tutti</label>
+              <select id="bulk-cat-select" class="select-styled">
+                <option value="">Assegna categoria ai selezionati…</option>
+              </select>
+              <button class="btn btn-secondary btn-sm" id="apply-bulk-cat">Applica</button>
+              <span class="imp-count" id="imp-count-label"></span>
+            </div>
+
+            <div class="table-wrap">
+              <table class="imp-table">
+                <thead>
+                  <tr>
+                    <th style="width:36px"><input type="checkbox" id="select-all-imp-head" onchange="document.getElementById('select-all-imp').click()"></th>
+                    <th style="width:64px" title="Righe da importare">Importa</th>
+                    <th>Data</th><th>Descrizione</th>
+                    <th>Importo orig.</th><th>EUR</th>
+                    <th>Fonte</th><th>Categoria</th>
+                  </tr>
+                </thead>
+                <tbody id="imp-table-body"></tbody>
+              </table>
+            </div>
+            <div id="imp-pagination"></div>
           </div>
 
-          <!-- Table -->
-          <div style="overflow-x:auto">
-            <table>
-              <thead>
-                <tr>
-                  <th style="width:36px"><input type="checkbox" id="select-all-imp-head" onchange="document.getElementById('select-all-imp').click()"></th>
-                  <th style="width:56px" title="Righe da importare">Importa</th>
-                  <th>Data</th><th>Descrizione</th>
-                  <th>Importo orig.</th><th>EUR</th>
-                  <th>Fonte</th><th>Categoria</th>
-                </tr>
-              </thead>
-              <tbody id="imp-table-body"></tbody>
-            </table>
-          </div>
-          <div id="imp-pagination"></div>
-
-          <div class="imp-nav mt-1">
+          <div class="imp-nav">
             <button class="btn btn-secondary" id="imp-back-2">
               <i data-lucide="arrow-left" class="lucide-icon icon-sm"></i> Indietro
             </button>
@@ -578,11 +556,11 @@
         <!-- STEP 3: Summary & Confirm -->
         <div class="imp-step hidden" id="imp-step-3">
           <div id="imp-summary-body"></div>
-          <div class="imp-nav mt-1">
+          <div class="imp-nav">
             <button class="btn btn-secondary" id="imp-back-3">
               <i data-lucide="arrow-left" class="lucide-icon icon-sm"></i> Modifica
             </button>
-            <button class="btn btn-success" id="imp-confirm-btn">
+            <button class="btn btn-primary" id="imp-confirm-btn">
               <i data-lucide="check" class="lucide-icon icon-sm"></i> Importa le transazioni
             </button>
           </div>
@@ -595,72 +573,60 @@
       <!-- ═══════════════════════════════════════════════════ -->
       <section id="view-transactions" class="view hidden">
 
-        <div class="section-header mb-15">
-          <h2 class="section-title">Transazioni</h2>
-          <span class="muted small" id="tx-count"></span>
-        </div>
-
         <!-- Filters -->
-        <div class="card mb-1" style="padding:1rem">
-          <div style="display:flex;gap:0.75rem;flex-wrap:wrap;align-items:center">
-            <div class="search-input-wrap" style="flex:1;min-width:180px">
-              <i data-lucide="search" class="lucide-icon icon-sm search-icon"></i>
-              <input type="text" id="tx-search" placeholder="Cerca descrizione…" class="input-with-icon">
-            </div>
-            <select id="tx-filter-category" class="select-styled" style="min-width:180px">
+        <div class="card filter-card">
+          <div class="search-input-wrap">
+            <i data-lucide="search" class="lucide-icon icon-sm search-icon"></i>
+            <input type="text" id="tx-search" placeholder="Cerca descrizione, note, dettagli…" class="input-with-icon">
+          </div>
+          <div class="filter-chips">
+            <select id="tx-filter-category" class="select-styled chip-select">
               <option value="">Tutte le categorie</option>
             </select>
-            <select id="tx-filter-source" class="select-styled">
+            <select id="tx-filter-source" class="select-styled chip-select">
               <option value="">Tutte le fonti</option>
               <option value="revolut_eur">Revolut EUR</option>
               <option value="revolut_usd">Revolut USD</option>
               <option value="intesa">Intesa San Paolo</option>
               <option value="satispay">Satispay</option>
             </select>
-            <select id="tx-filter-year" class="select-styled">
+            <select id="tx-filter-year" class="select-styled chip-select">
               <option value="">Mese corrente</option>
               <option value="2024">2024 (intero anno)</option>
               <option value="2025">2025 (intero anno)</option>
               <option value="2026">2026 (intero anno)</option>
               <option value="2027">2027 (intero anno)</option>
             </select>
-            <select id="tx-filter-wallet" class="select-styled">
+            <select id="tx-filter-wallet" class="select-styled chip-select">
               <option value="">Tutti i wallet</option>
             </select>
           </div>
         </div>
 
         <!-- Bulk wallet assignment (visible when rows are selected) -->
-        <div class="card mb-1 bulk-bar hidden" id="tx-bulk-bar">
-          <span class="bulk-count" id="tx-bulk-count"></span>
-          <button type="button" class="btn-link small hidden" id="tx-select-all-filtered"></button>
+        <div class="bulk-bar hidden" id="tx-bulk-bar">
+          <div class="bulk-info">
+            <span class="bulk-count" id="tx-bulk-count"></span>
+            <button type="button" class="btn-link small hidden" id="tx-select-all-filtered"></button>
+          </div>
           <div class="bulk-actions">
-            <select id="tx-bulk-wallet" class="select-styled" style="min-width:180px"></select>
+            <select id="tx-bulk-wallet" class="select-styled"></select>
             <button class="btn btn-primary btn-sm" onclick="bulkAssignWallet()">
-              <i data-lucide="wallet-cards" class="lucide-icon icon-sm"></i> Assegna al wallet
+              <i data-lucide="wallet-cards" class="lucide-icon icon-sm"></i> Assegna
             </button>
             <button class="btn btn-secondary btn-sm" onclick="bulkAssignWallet(null)">Rimuovi dal wallet</button>
-            <button class="btn btn-secondary btn-sm" onclick="clearTxSelection()">Deseleziona</button>
+            <button class="icon-btn" onclick="clearTxSelection()" title="Deseleziona"><i data-lucide="x" class="lucide-icon icon-sm"></i></button>
           </div>
         </div>
 
-        <!-- Table -->
-        <div class="card" style="padding:0">
-          <div style="overflow-x:auto">
-            <table>
-              <thead>
-                <tr>
-                  <th style="width:36px"><input type="checkbox" id="tx-select-page" title="Seleziona tutte in questa pagina"></th>
-                  <th>Data</th><th>Descrizione & Note</th><th>Categoria</th>
-                  <th>Importo EUR</th><th>Fonte</th><th style="width:70px">Azioni</th>
-                </tr>
-              </thead>
-              <tbody id="tx-table-body">
-                <tr><td colspan="7" class="empty-row">Nessuna transazione</td></tr>
-              </tbody>
-            </table>
+        <!-- List -->
+        <div class="card list-card">
+          <div class="list-toolbar">
+            <label class="check-label"><input type="checkbox" id="tx-select-page" title="Seleziona tutte in questa pagina"> Seleziona pagina</label>
+            <span class="muted small" id="tx-count"></span>
           </div>
-          <div id="tx-pagination" style="padding:0.75rem 1rem"></div>
+          <div class="tx-list" id="tx-table-body"></div>
+          <div id="tx-pagination"></div>
         </div>
 
       </section>
@@ -670,49 +636,43 @@
       <!-- ═══════════════════════════════════════════════════ -->
       <section id="view-analytics" class="view hidden">
 
-        <div class="section-header mb-15">
-          <h2 class="section-title">Analytics</h2>
-          <div id="analytics-year-wrap"></div>
+        <div class="page-head">
+          <p class="page-sub">L'andamento dell'anno: entrate, uscite, saldo e categorie.</p>
+          <div class="page-actions" id="analytics-year-wrap"></div>
         </div>
 
-        <!-- Annual KPIs -->
-        <div class="analytics-grid mb-15">
-          <div class="kpi-card danger analytics-kpi">
-            <span class="kpi-label">Uscite Annuali</span>
-            <span class="kpi-value negative" id="an-total-exp">€ 0</span>
+        <div class="kpi-grid kpi-grid-3">
+          <div class="kpi-card danger">
+            <span class="kpi-label">Uscite annuali</span>
+            <span class="kpi-value" id="an-total-exp">€ 0</span>
           </div>
-          <div class="kpi-card success analytics-kpi">
-            <span class="kpi-label">Entrate Annuali</span>
+          <div class="kpi-card success">
+            <span class="kpi-label">Entrate annuali</span>
             <span class="kpi-value positive" id="an-total-inc">€ 0</span>
           </div>
-          <div class="kpi-card analytics-kpi">
-            <span class="kpi-label">Netto Annuale</span>
+          <div class="kpi-card">
+            <span class="kpi-label">Netto annuale</span>
             <span class="kpi-value" id="an-total-net">€ 0</span>
           </div>
         </div>
 
-
-
-        <!-- Monthly trend -->
-        <div class="chart-card mb-15">
-          <h3>Andamento Mensile — Entrate vs Uscite</h3>
+        <div class="chart-card">
+          <h3>Entrate e uscite per mese</h3>
           <div class="chart-wrap chart-tall"><canvas id="chart-trend"></canvas></div>
         </div>
 
-        <!-- Annual stacked -->
-        <div class="chart-card mb-15">
-          <h3>Spese per Categoria — Mensile</h3>
+        <div class="chart-card">
+          <h3>Spese per categoria, mese per mese</h3>
           <div class="chart-wrap chart-tall"><canvas id="chart-annual"></canvas></div>
         </div>
 
-        <!-- Balance -->
-        <div class="chart-card mb-15">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;flex-wrap:wrap;gap:0.5rem">
+        <div class="chart-card">
+          <div class="chart-head">
             <div>
-              <h3 style="margin-bottom:0.15rem">Evoluzione Saldo (EUR) & Previsione Fine Anno</h3>
-              <span class="muted small">Linea continua blu = Saldo Reale | Linea tratteggiata arancione = Previsione Budget</span>
+              <h3>Saldo e previsione di fine anno</h3>
+              <span class="muted small">Linea piena: saldo reale · tratteggiata: previsione da budget</span>
             </div>
-            <div style="display:flex;gap:0.35rem;margin-left:auto">
+            <div class="segmented">
               <button class="btn btn-primary btn-sm" id="balance-mode-monthly" onclick="setBalanceMode('monthly')">Mensile</button>
               <button class="btn btn-secondary btn-sm" id="balance-mode-daily" onclick="setBalanceMode('daily')">Giornaliero</button>
             </div>
@@ -720,21 +680,19 @@
           <div class="chart-wrap chart-full"><canvas id="chart-balance"></canvas></div>
         </div>
 
-        <!-- Year comparison (hidden if only 1 year) -->
-        <div id="year-compare-section" class="chart-card mb-15 hidden">
-          <h3>Confronto Anno per Anno — Uscite Mensili</h3>
+        <div id="year-compare-section" class="chart-card hidden">
+          <h3>Confronto anno su anno: uscite mensili</h3>
           <div class="chart-wrap chart-full"><canvas id="chart-year-compare"></canvas></div>
         </div>
 
-        <!-- Annual category table -->
         <div class="card">
-          <div class="section-header">
-            <span class="section-title">Riepilogo per Categoria</span>
+          <div class="card-head">
+            <h3 class="card-heading">Riepilogo per categoria</h3>
           </div>
-          <div style="overflow-x:auto">
-            <table>
+          <div class="table-wrap">
+            <table class="compact-table">
               <thead>
-                <tr><th>Categoria</th><th>Speso</th><th>Budget Annuale</th><th>% Utilizzo</th></tr>
+                <tr><th>Categoria</th><th class="num">Speso</th><th class="num">Budget annuo</th><th class="num">Utilizzo</th></tr>
               </thead>
               <tbody id="an-cat-table-body"></tbody>
             </table>
@@ -748,18 +706,20 @@
       <!-- ═══════════════════════════════════════════════════ -->
       <section id="view-settings" class="view hidden">
 
-        <h2 class="section-title mb-15">Impostazioni</h2>
+        <div class="settings-grid">
 
-        <div class="grid-2 gap-1">
-
-          <!-- LEFT COLUMN -->
-          <div>
-
-
-
-            <!-- Categories management -->
+          <div class="settings-col">
             <div class="card settings-section">
-              <h3>Gestione Categorie</h3>
+              <h3>Account</h3>
+              <div class="settings-row">
+                <label for="initial-balance">Saldo iniziale (EUR)<span class="muted small">Usato per il grafico del saldo</span></label>
+                <input type="number" id="initial-balance" placeholder="0">
+              </div>
+              <button class="btn btn-secondary btn-sm" id="save-account-btn">Salva</button>
+            </div>
+
+            <div class="card settings-section">
+              <h3>Categorie</h3>
               <div class="cat-list" id="categories-list"></div>
               <div class="add-cat-row">
                 <input type="text" id="new-cat-input" placeholder="Nuova categoria…">
@@ -768,140 +728,108 @@
                 </button>
               </div>
             </div>
-
           </div>
 
-          <!-- RIGHT COLUMN -->
-          <div>
-
-            <!-- Google Drive Config -->
-            <div class="card settings-section mb-1">
-              <h3>☁️ Google Drive (Apps Script)</h3>
-              <p class="muted small" style="margin-bottom:1rem">Alternativa a GitHub: archivia <code>data.json</code> su Google Drive tramite un Apps Script.<br>
-              Vedi <strong>GoogleAppsScript/Code.gs</strong> per le istruzioni di deploy.</p>
+          <div class="settings-col">
+            <div class="card settings-section">
+              <h3>Cambia password</h3>
               <div class="form-group">
-                <label>Web App URL (Apps Script)</label>
-                <input type="text" id="gd-url" placeholder="https://script.google.com/macros/s/…/exec">
-              </div>
-              <div class="form-group">
-                <label>Token segreto (opzionale)</label>
-                <input type="password" id="gd-token" placeholder="Password impostata nello script">
-              </div>
-              <div class="flex gap-05" style="flex-wrap:wrap">
-                <button class="btn btn-secondary btn-sm" id="gd-test-btn">
-                  <i data-lucide="wifi" class="lucide-icon icon-sm"></i> Testa
-                </button>
-                <button class="btn btn-primary btn-sm" id="gd-save-btn">
-                  <i data-lucide="save" class="lucide-icon icon-sm"></i> Salva config
-                </button>
-              </div>
-              <div style="margin-top:1rem;display:flex;gap:0.5rem;flex-wrap:wrap">
-                <button class="btn btn-secondary btn-sm" id="gd-pull-btn">
-                  <i data-lucide="download" class="lucide-icon icon-sm"></i> Pull da Drive
-                </button>
-                <button class="btn btn-secondary btn-sm" id="gd-push-btn">
-                  <i data-lucide="upload" class="lucide-icon icon-sm"></i> Push su Drive
-                </button>
-              </div>
-            </div>
-
-            <!-- GitHub Config -->
-
-            <div class="card settings-section mb-1">
-              <h3>Sincronizzazione GitHub</h3>
-              <div class="gh-grid">
-                <div class="form-group">
-                  <label>GitHub Username / Org</label>
-                  <input type="text" id="gh-owner" placeholder="es. stefanobossolasco">
-                </div>
-                <div class="form-group">
-                  <label>Nome Repository</label>
-                  <input type="text" id="gh-repo" placeholder="es. FinancialControl">
-                </div>
-                <div class="form-group">
-                  <label>Branch</label>
-                  <input type="text" id="gh-branch" placeholder="main">
-                </div>
-                <div class="form-group">
-                  <label>Path file dati</label>
-                  <input type="text" id="gh-path" placeholder="data.json">
-                </div>
-                <div class="form-group gh-full">
-                  <label>Personal Access Token (PAT)</label>
-                  <input type="password" id="gh-pat" placeholder="ghp_…">
-                </div>
-              </div>
-              <div class="flex gap-05">
-                <button class="btn btn-secondary btn-sm" id="gh-test-btn">Testa connessione</button>
-                <button class="btn btn-primary btn-sm" id="save-gh-btn">Salva config</button>
-              </div>
-              <div style="margin-top:1rem;display:flex;gap:0.5rem">
-                <button class="btn btn-secondary btn-sm" id="sync-pull-btn">
-                  <i data-lucide="download" class="lucide-icon icon-sm"></i> Pull da GitHub
-                </button>
-                <button class="btn btn-secondary btn-sm" id="sync-push-btn">
-                  <i data-lucide="upload" class="lucide-icon icon-sm"></i> Push su GitHub
-                </button>
-              </div>
-            </div>
-
-            <!-- Account settings -->
-            <div class="card settings-section mb-1">
-              <h3>Account</h3>
-              <div class="settings-row">
-                <label>Saldo iniziale (EUR) — usato per il grafico saldo</label>
-                <input type="number" id="initial-balance" placeholder="0" style="width:120px">
-              </div>
-              <button class="btn btn-secondary btn-sm mb-1" id="save-account-btn">Salva</button>
-
-              <h3 style="margin-top:1.25rem">Cambia Password</h3>
-              <div class="form-group">
-                <label>Password attuale</label>
+                <label for="curr-password">Password attuale</label>
                 <input type="password" id="curr-password" placeholder="Password corrente">
               </div>
               <div class="form-group">
-                <label>Nuova password</label>
+                <label for="new-password">Nuova password</label>
                 <input type="password" id="new-password" placeholder="Nuova password">
               </div>
               <div class="form-group">
-                <label>Conferma nuova password</label>
+                <label for="conf-password">Conferma nuova password</label>
                 <input type="password" id="conf-password" placeholder="Conferma">
               </div>
               <button class="btn btn-secondary btn-sm" id="change-pw-btn">Aggiorna password</button>
             </div>
 
-            <!-- Data management -->
             <div class="card settings-section danger-zone">
-              <h3>Gestione Dati</h3>
-              <div class="danger-row" style="background:var(--accent-subtle,rgba(10,132,255,0.08));border-radius:10px;padding:0.75rem 1rem;margin-bottom:0.5rem">
+              <h3>Gestione dati</h3>
+              <div class="danger-row highlight">
                 <div>
-                  <strong style="font-size:0.875rem;color:var(--accent)">Carica storico su Firebase</strong>
+                  <strong>Carica storico su Firebase</strong>
                   <p>Importa le 416 transazioni da data.json nel tuo account Firebase</p>
                 </div>
                 <button class="btn btn-primary btn-sm" id="migrate-data-btn" onclick="migrateFromDataJson()">
-                  <i data-lucide="cloud-upload" class="lucide-icon icon-sm"></i> Carica su Firebase
+                  <i data-lucide="cloud-upload" class="lucide-icon icon-sm"></i> Carica
                 </button>
               </div>
               <div class="danger-row">
-                <div><strong style="font-size:0.875rem">Esporta dati</strong><p>Scarica data.json completo</p></div>
+                <div><strong>Esporta dati</strong><p>Scarica data.json completo</p></div>
                 <button class="btn btn-secondary btn-sm" id="export-data-btn">
                   <i data-lucide="download" class="lucide-icon icon-sm"></i> Esporta
                 </button>
               </div>
               <div class="danger-row">
-                <div><strong style="font-size:0.875rem">Importa dati</strong><p>Carica un data.json esistente</p></div>
+                <div><strong>Importa dati</strong><p>Carica un data.json esistente</p></div>
                 <button class="btn btn-secondary btn-sm" id="import-data-btn">
                   <i data-lucide="upload" class="lucide-icon icon-sm"></i> Importa
                 </button>
               </div>
               <div class="danger-row">
-                <div><strong style="font-size:0.875rem;color:var(--danger)">Cancella tutto</strong><p>Elimina tutte le transazioni da Firebase</p></div>
+                <div><strong class="negative">Cancella tutto</strong><p>Elimina tutte le transazioni da Firebase</p></div>
                 <button class="btn btn-danger btn-sm" id="clear-all-btn">
                   <i data-lucide="trash-2" class="lucide-icon icon-sm"></i> Cancella
                 </button>
               </div>
             </div>
 
+            <details class="card settings-section settings-details">
+              <summary><h3>Sincronizzazione esterna (legacy)</h3><i data-lucide="chevron-down" class="lucide-icon icon-sm"></i></summary>
+
+              <h4>Google Drive (Apps Script)</h4>
+              <p class="muted small">Alternativa a GitHub: archivia <code>data.json</code> su Google Drive tramite un Apps Script.
+              Vedi <strong>GoogleAppsScript/Code.gs</strong> per le istruzioni di deploy.</p>
+              <div class="form-group">
+                <label for="gd-url">Web App URL (Apps Script)</label>
+                <input type="text" id="gd-url" placeholder="https://script.google.com/macros/s/…/exec">
+              </div>
+              <div class="form-group">
+                <label for="gd-token">Token segreto (opzionale)</label>
+                <input type="password" id="gd-token" placeholder="Password impostata nello script">
+              </div>
+              <div class="btn-row">
+                <button class="btn btn-secondary btn-sm" id="gd-test-btn"><i data-lucide="wifi" class="lucide-icon icon-sm"></i> Testa</button>
+                <button class="btn btn-secondary btn-sm" id="gd-save-btn"><i data-lucide="save" class="lucide-icon icon-sm"></i> Salva config</button>
+                <button class="btn btn-secondary btn-sm" id="gd-pull-btn"><i data-lucide="download" class="lucide-icon icon-sm"></i> Pull da Drive</button>
+                <button class="btn btn-secondary btn-sm" id="gd-push-btn"><i data-lucide="upload" class="lucide-icon icon-sm"></i> Push su Drive</button>
+              </div>
+
+              <h4>GitHub</h4>
+              <div class="gh-grid">
+                <div class="form-group">
+                  <label for="gh-owner">Username / Org</label>
+                  <input type="text" id="gh-owner" placeholder="es. stefanobossolasco">
+                </div>
+                <div class="form-group">
+                  <label for="gh-repo">Repository</label>
+                  <input type="text" id="gh-repo" placeholder="es. FinancialControl">
+                </div>
+                <div class="form-group">
+                  <label for="gh-branch">Branch</label>
+                  <input type="text" id="gh-branch" placeholder="main">
+                </div>
+                <div class="form-group">
+                  <label for="gh-path">Path file dati</label>
+                  <input type="text" id="gh-path" placeholder="data.json">
+                </div>
+                <div class="form-group gh-full">
+                  <label for="gh-pat">Personal Access Token (PAT)</label>
+                  <input type="password" id="gh-pat" placeholder="ghp_…">
+                </div>
+              </div>
+              <div class="btn-row">
+                <button class="btn btn-secondary btn-sm" id="gh-test-btn">Testa connessione</button>
+                <button class="btn btn-secondary btn-sm" id="save-gh-btn">Salva config</button>
+                <button class="btn btn-secondary btn-sm" id="sync-pull-btn"><i data-lucide="download" class="lucide-icon icon-sm"></i> Pull da GitHub</button>
+                <button class="btn btn-secondary btn-sm" id="sync-push-btn"><i data-lucide="upload" class="lucide-icon icon-sm"></i> Push su GitHub</button>
+              </div>
+            </details>
           </div>
         </div>
 
@@ -909,6 +837,15 @@
 
     </div><!-- /view-container -->
   </div><!-- /main-content -->
+
+  <!-- ── MOBILE TAB BAR ──────────────────────────────────── -->
+  <nav id="tabbar" aria-label="Navigazione rapida">
+    <a href="#" class="tab-link active" data-view="dashboard"><i data-lucide="home" class="lucide-icon"></i><span>Home</span></a>
+    <a href="#" class="tab-link" data-view="transactions"><i data-lucide="arrow-left-right" class="lucide-icon"></i><span>Movimenti</span></a>
+    <button type="button" class="tab-fab" onclick="openAddExpenseModal()" aria-label="Nuova spesa"><i data-lucide="plus" class="lucide-icon"></i></button>
+    <a href="#" class="tab-link" data-view="wallets"><i data-lucide="wallet-cards" class="lucide-icon"></i><span>Wallet</span></a>
+    <a href="#" class="tab-link" data-view="more" id="tab-more"><i data-lucide="layout-grid" class="lucide-icon"></i><span>Altro</span></a>
+  </nav>
 </div><!-- /screen-app -->
 
 <!-- ══════════════════════════════════════════════════════════ -->
@@ -917,57 +854,55 @@
 <div id="modal-add-expense" class="modal-overlay hidden">
   <div class="modal-content">
     <div class="modal-header">
-      <h3 id="modal-expense-title">
-        <i data-lucide="plus-circle" class="lucide-icon icon-sm"></i> Nuova Spesa / Entrata
-      </h3>
-      <button class="btn-icon" onclick="closeAddExpenseModal()">
+      <h3 id="modal-expense-title">Nuovo movimento</h3>
+      <button class="icon-btn" onclick="closeAddExpenseModal()" aria-label="Chiudi">
         <i data-lucide="x" class="lucide-icon"></i>
       </button>
     </div>
     <form id="add-expense-form">
       <div class="modal-body">
-        <div class="grid-2 gap-1 mb-1">
-          <div class="form-group mb-0">
-            <label for="exp-date">Data</label>
-            <input type="date" id="exp-date" required>
-          </div>
-          <div class="form-group mb-0">
-            <label for="exp-type">Tipo</label>
-            <select id="exp-type" class="select-styled" style="width:100%">
-              <option value="Expense">Spesa (Uscita)</option>
-              <option value="Income">Entrata</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="form-group mb-1">
-          <label for="exp-desc">Descrizione</label>
-          <input type="text" id="exp-desc" placeholder="es. Spesa al supermercato" required>
-        </div>
-
-        <div class="grid-2 gap-1 mb-1">
+        <div class="amount-field">
           <div class="form-group mb-0">
             <label for="exp-amount">Importo</label>
-            <input type="number" id="exp-amount" placeholder="0.00" step="0.01" min="0.01" required>
+            <input type="number" id="exp-amount" class="amount-input" placeholder="0,00" step="0.01" min="0.01" inputmode="decimal" required>
           </div>
           <div class="form-group mb-0">
             <label for="exp-currency">Valuta</label>
-            <select id="exp-currency" class="select-styled" style="width:100%">
+            <select id="exp-currency" class="select-styled">
               <option value="EUR">EUR (€)</option>
               <option value="USD">USD ($)</option>
             </select>
           </div>
         </div>
 
-        <div class="grid-2 gap-1 mb-1">
-          <div class="form-group mb-0">
-            <label for="exp-category">Categoria</label>
-            <select id="exp-category" class="select-styled" style="width:100%" required>
+        <div class="form-group">
+          <label for="exp-desc">Descrizione</label>
+          <input type="text" id="exp-desc" placeholder="es. Spesa al supermercato" required>
+        </div>
+
+        <div class="grid-2">
+          <div class="form-group">
+            <label for="exp-type">Tipo</label>
+            <select id="exp-type" class="select-styled">
+              <option value="Expense">Spesa (uscita)</option>
+              <option value="Income">Entrata</option>
             </select>
           </div>
-          <div class="form-group mb-0">
-            <label for="exp-source">Fonte / Conto</label>
-            <select id="exp-source" class="select-styled" style="width:100%">
+          <div class="form-group">
+            <label for="exp-date">Data</label>
+            <input type="date" id="exp-date" required>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="form-group">
+            <label for="exp-category">Categoria</label>
+            <select id="exp-category" class="select-styled" required>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="exp-source">Fonte / conto</label>
+            <select id="exp-source" class="select-styled">
               <option value="revolut_eur">Revolut EUR</option>
               <option value="revolut_usd">Revolut USD</option>
               <option value="intesa">Intesa San Paolo</option>
@@ -977,19 +912,19 @@
           </div>
         </div>
 
-        <div class="form-group mb-1">
-          <label for="exp-wallet">Wallet (opzionale)</label>
-          <select id="exp-wallet" class="select-styled" style="width:100%"></select>
+        <div class="form-group">
+          <label for="exp-wallet">Wallet <span class="optional">opzionale</span></label>
+          <select id="exp-wallet" class="select-styled"></select>
         </div>
 
         <div class="form-group mb-0">
-          <label for="exp-notes">Note (opzionale)</label>
+          <label for="exp-notes">Note <span class="optional">opzionale</span></label>
           <input type="text" id="exp-notes" placeholder="es. Dettagli o promemoria…">
         </div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" onclick="closeAddExpenseModal()">Annulla</button>
-        <button type="submit" class="btn btn-primary">Salva Spesa</button>
+        <button type="submit" class="btn btn-primary">Salva</button>
       </div>
     </form>
   </div>
@@ -999,25 +934,25 @@
 <!--  MODAL: EDIT NOTE                                         -->
 <!-- ══════════════════════════════════════════════════════════ -->
 <div id="modal-edit-note" class="modal-overlay hidden">
-  <div class="modal-content" style="max-width:440px">
+  <div class="modal-content modal-sm">
     <div class="modal-header">
-      <h3><i data-lucide="pencil" class="lucide-icon icon-sm"></i> Modifica Nota</h3>
-      <button class="btn-icon" onclick="closeNoteModal()">
+      <h3>Nota</h3>
+      <button class="icon-btn" onclick="closeNoteModal()" aria-label="Chiudi">
         <i data-lucide="x" class="lucide-icon"></i>
       </button>
     </div>
     <form id="edit-note-form">
       <div class="modal-body">
-        <p id="note-tx-info" class="muted small mb-1" style="font-weight:500"></p>
+        <p id="note-tx-info" class="note-context"></p>
         <input type="hidden" id="note-tx-id">
         <div class="form-group mb-0">
-          <label for="note-text">Nota / Dettaglio</label>
-          <textarea id="note-text" rows="3" class="input" style="width:100%;resize:vertical" placeholder="Inserisci una nota per questa transazione…"></textarea>
+          <label for="note-text">Nota / dettaglio</label>
+          <textarea id="note-text" rows="3" class="input" placeholder="Inserisci una nota per questa transazione…"></textarea>
         </div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" onclick="closeNoteModal()">Annulla</button>
-        <button type="submit" class="btn btn-primary">Salva Nota</button>
+        <button type="submit" class="btn btn-primary">Salva nota</button>
       </div>
     </form>
   </div>
@@ -1029,52 +964,52 @@
 <div id="modal-edit-tx" class="modal-overlay hidden">
   <div class="modal-content">
     <div class="modal-header">
-      <h3><i data-lucide="pencil" class="lucide-icon icon-sm"></i> Modifica Transazione</h3>
-      <button class="btn-icon" onclick="closeEditTxModal()">
+      <h3>Modifica movimento</h3>
+      <button class="icon-btn" onclick="closeEditTxModal()" aria-label="Chiudi">
         <i data-lucide="x" class="lucide-icon"></i>
       </button>
     </div>
     <form id="edit-tx-form">
       <div class="modal-body">
         <input type="hidden" id="edit-tx-id">
-        <div class="grid-2 gap-1 mb-1">
+        <div class="amount-field">
           <div class="form-group mb-0">
-            <label for="edit-tx-date">Data</label>
-            <input type="date" id="edit-tx-date" required>
-          </div>
-          <div class="form-group mb-0">
-            <label for="edit-tx-type">Tipo</label>
-            <select id="edit-tx-type" class="select-styled" style="width:100%">
-              <option value="Expense">Spesa (Uscita)</option>
-              <option value="Income">Entrata</option>
-            </select>
-          </div>
-        </div>
-        <div class="form-group mb-1">
-          <label for="edit-tx-desc">Descrizione</label>
-          <input type="text" id="edit-tx-desc" required>
-        </div>
-        <div class="grid-2 gap-1 mb-1">
-          <div class="form-group mb-0">
-            <label for="edit-tx-amount">Importo (valore assoluto)</label>
-            <input type="number" id="edit-tx-amount" placeholder="0.00" step="0.01" min="0.01" required>
+            <label for="edit-tx-amount">Importo</label>
+            <input type="number" id="edit-tx-amount" class="amount-input" placeholder="0,00" step="0.01" min="0.01" inputmode="decimal" required>
           </div>
           <div class="form-group mb-0">
             <label for="edit-tx-currency">Valuta</label>
-            <select id="edit-tx-currency" class="select-styled" style="width:100%">
+            <select id="edit-tx-currency" class="select-styled">
               <option value="EUR">EUR (€)</option>
               <option value="USD">USD ($)</option>
             </select>
           </div>
         </div>
-        <div class="grid-2 gap-1 mb-1">
-          <div class="form-group mb-0">
-            <label for="edit-tx-category">Categoria</label>
-            <select id="edit-tx-category" class="select-styled" style="width:100%" required></select>
+        <div class="form-group">
+          <label for="edit-tx-desc">Descrizione</label>
+          <input type="text" id="edit-tx-desc" required>
+        </div>
+        <div class="grid-2">
+          <div class="form-group">
+            <label for="edit-tx-type">Tipo</label>
+            <select id="edit-tx-type" class="select-styled">
+              <option value="Expense">Spesa (uscita)</option>
+              <option value="Income">Entrata</option>
+            </select>
           </div>
-          <div class="form-group mb-0">
-            <label for="edit-tx-source">Fonte / Conto</label>
-            <select id="edit-tx-source" class="select-styled" style="width:100%">
+          <div class="form-group">
+            <label for="edit-tx-date">Data</label>
+            <input type="date" id="edit-tx-date" required>
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="form-group">
+            <label for="edit-tx-category">Categoria</label>
+            <select id="edit-tx-category" class="select-styled" required></select>
+          </div>
+          <div class="form-group">
+            <label for="edit-tx-source">Fonte / conto</label>
+            <select id="edit-tx-source" class="select-styled">
               <option value="revolut_eur">Revolut EUR</option>
               <option value="revolut_usd">Revolut USD</option>
               <option value="intesa">Intesa San Paolo</option>
@@ -1083,20 +1018,18 @@
             </select>
           </div>
         </div>
-        <div class="form-group mb-1">
-          <label for="edit-tx-wallet">Wallet (opzionale)</label>
-          <select id="edit-tx-wallet" class="select-styled" style="width:100%"></select>
+        <div class="form-group">
+          <label for="edit-tx-wallet">Wallet <span class="optional">opzionale</span></label>
+          <select id="edit-tx-wallet" class="select-styled"></select>
         </div>
         <div class="form-group mb-0">
-          <label for="edit-tx-notes">Note (opzionale)</label>
+          <label for="edit-tx-notes">Note <span class="optional">opzionale</span></label>
           <input type="text" id="edit-tx-notes" placeholder="es. Dettagli o promemoria…">
         </div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" onclick="closeEditTxModal()">Annulla</button>
-        <button type="submit" class="btn btn-primary">
-          <i data-lucide="save" class="lucide-icon icon-sm"></i> Salva Modifiche
-        </button>
+        <button type="submit" class="btn btn-primary">Salva modifiche</button>
       </div>
     </form>
   </div>
@@ -1106,51 +1039,49 @@
 <!--  MODAL: WALLET                                            -->
 <!-- ══════════════════════════════════════════════════════════ -->
 <div id="modal-wallet" class="modal-overlay hidden">
-  <div class="modal-content" style="max-width:480px">
+  <div class="modal-content modal-md">
     <div class="modal-header">
-      <h3 id="modal-wallet-title"><i data-lucide="wallet-cards" class="lucide-icon icon-sm"></i> Nuovo Wallet</h3>
-      <button class="btn-icon" onclick="closeWalletModal()">
+      <h3 id="modal-wallet-title">Nuovo wallet</h3>
+      <button class="icon-btn" onclick="closeWalletModal()" aria-label="Chiudi">
         <i data-lucide="x" class="lucide-icon"></i>
       </button>
     </div>
     <form id="wallet-form">
       <div class="modal-body">
         <input type="hidden" id="wallet-id">
-        <div class="form-group mb-1">
+        <div class="form-group">
           <label for="wallet-name">Nome</label>
           <input type="text" id="wallet-name" placeholder="es. Vacanze Giappone" maxlength="60" required>
         </div>
-        <div class="grid-2 gap-1 mb-1">
-          <div class="form-group mb-0">
+        <div class="grid-2">
+          <div class="form-group">
             <label for="wallet-amount">Base iniziale (€)</label>
-            <input type="number" id="wallet-amount" placeholder="0.00" step="0.01" min="0" required>
+            <input type="number" id="wallet-amount" placeholder="0,00" step="0.01" min="0" inputmode="decimal" required>
           </div>
-          <div class="form-group mb-0">
+          <div class="form-group">
             <label for="wallet-color">Colore</label>
-            <input type="color" id="wallet-color" value="#0a84ff" class="wallet-color-input">
+            <input type="color" id="wallet-color" value="#f23a4c" class="wallet-color-input">
           </div>
         </div>
-        <div class="grid-2 gap-1 mb-1">
-          <div class="form-group mb-0">
-            <label for="wallet-start">Dal (opzionale)</label>
+        <div class="grid-2">
+          <div class="form-group">
+            <label for="wallet-start">Dal <span class="optional">opzionale</span></label>
             <input type="date" id="wallet-start">
           </div>
-          <div class="form-group mb-0">
-            <label for="wallet-end">Al (opzionale)</label>
+          <div class="form-group">
+            <label for="wallet-end">Al <span class="optional">opzionale</span></label>
             <input type="date" id="wallet-end">
           </div>
         </div>
-        <p class="muted small mb-1">La base è il punto di partenza: le entrate assegnate al wallet la aumentano, le uscite la riducono.</p>
+        <p class="form-hint">La base è il punto di partenza: le entrate assegnate al wallet la aumentano, le uscite la riducono.</p>
         <div class="form-group mb-0">
-          <label for="wallet-notes">Note (opzionale)</label>
+          <label for="wallet-notes">Note <span class="optional">opzionale</span></label>
           <input type="text" id="wallet-notes" placeholder="es. Budget complessivo del viaggio">
         </div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" onclick="closeWalletModal()">Annulla</button>
-        <button type="submit" class="btn btn-primary">
-          <i data-lucide="save" class="lucide-icon icon-sm"></i> Salva Wallet
-        </button>
+        <button type="submit" class="btn btn-primary">Salva wallet</button>
       </div>
     </form>
   </div>
@@ -1164,8 +1095,8 @@
 <script src="js/auth.js?v=2.0"></script>
 <script src="js/data.js?v=2.4"></script>
 <script src="js/import.js?v=3.0"></script>
-<script src="js/charts.js?v=2.3"></script>
-<script src="js/app.js?v=2.4"></script>
+<script src="js/charts.js?v=3.0"></script>
+<script src="js/app.js?v=3.0"></script>
 
 </body>
 </html>

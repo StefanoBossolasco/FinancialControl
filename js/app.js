@@ -42,14 +42,18 @@ const S = {
 };
 
 const PAGE_TITLES = {
-  dashboard:    'Dashboard',
-  budget:       'Gestione Budget',
+  dashboard:    'Home',
+  budget:       'Budget',
   wallets:      'Wallet',
-  import:       'Importa Estratti Conto',
-  transactions: 'Transazioni',
-  analytics:    'Analytics',
+  import:       'Importa',
+  transactions: 'Movimenti',
+  analytics:    'Analisi',
   settings:     'Impostazioni'
 };
+
+// Views reached from the "Altro" sheet on phones
+const MORE_VIEWS = ['budget', 'analytics', 'import', 'settings'];
+const MOBILE_BP = 860;
 
 // ── Helpers ───────────────────────────────────────────────────
 const YM = () => `${S.year}-${String(S.month).padStart(2,'0')}`;
@@ -59,6 +63,10 @@ function fmt(v) {
 }
 function fmtCompact(v) {
   return new Intl.NumberFormat('it-IT', { style:'currency', currency:'EUR', maximumFractionDigits:0 }).format(v);
+}
+// Signed amount for list rows: "−12,50 €" / "+35,00 €"
+function fmtSigned(v) {
+  return (v < 0 ? '−' : '+') + fmt(Math.abs(v));
 }
 function fmtDate(d) {
   return new Date(d).toLocaleDateString('it-IT', { day:'2-digit', month:'short', year:'numeric' });
@@ -99,12 +107,15 @@ function navigate(view) {
   const target = el(`view-${view}`);
   if (target) target.classList.remove('hidden');
 
-  document.querySelectorAll('.nav-link').forEach(l => {
-    l.classList.toggle('active', l.dataset.view === view);
+  document.querySelectorAll('.nav-link, .tab-link').forEach(l => {
+    l.classList.toggle('active', l.dataset.view === view || (l.dataset.view === 'more' && MORE_VIEWS.includes(view)));
   });
+  closeMobileSheet();
+  if (S.view !== view) window.scrollTo(0, 0);
 
   S.view = view;
   setText('page-title', PAGE_TITLES[view] || view);
+  document.title = `FinancialControl — ${PAGE_TITLES[view] || view}`;
   updateMonthSelector();
 
   switch (view) {
@@ -169,12 +180,21 @@ function renderDashboard() {
   setText('budget-bar-label', `${pct.toFixed(0)}% del budget mensile`);
 
   // Charts
+  // The empty state replaces the canvas, so it is re-created each time
   if (Object.keys(catTotals).length > 0) {
+    set('chart-donut-wrap', '<canvas id="chart-donut"></canvas>');
     Charts.donut('chart-donut', catTotals);
   } else {
-    set('chart-donut-wrap', '<div class="empty-chart">Nessun dato per questo mese</div>');
+    Charts.destroy('chart-donut');
+    set('chart-donut-wrap', emptyChart('Nessuna spesa in questo mese'));
   }
-  Charts.budgetBar('chart-budget', budgets, catTotals, Data.getCategories());
+  if (Object.values(budgets).some(v => v > 0) || Object.keys(catTotals).length > 0) {
+    set('chart-budget-wrap', '<canvas id="chart-budget"></canvas>');
+    Charts.budgetBar('chart-budget', budgets, catTotals, Data.getCategories());
+  } else {
+    Charts.destroy('chart-budget');
+    set('chart-budget-wrap', emptyChart('Nessun budget impostato: definiscilo nella sezione Budget'));
+  }
 
   // Populate Dashboard category filter dropdown
   const cats = Data.getCategories();
@@ -195,47 +215,83 @@ function renderDashboard() {
     dashTxs = dashTxs.filter(t => t.category === S.dashFilter.category);
   }
 
-  setText('dash-tx-count', `(${dashTxs.length} di ${txs.length})`);
+  setText('dash-tx-count', dashTxs.length === txs.length ? `${txs.length}` : `${dashTxs.length} di ${txs.length}`);
   renderRecentTxTable(dashTxs);
   refreshIcons();
 }
 
 function renderTxRow(t, cats, selectable = false) {
-  const amtClass = t.amountEUR < 0 ? 'negative' : 'positive';
-  const srcIcon  = sourceIcon(t.source);
+  const style    = Charts.categoryStyle(t.category);
   const hasNote  = !!(t.notes && t.notes.trim());
   const wallet   = t.walletId ? Data.getWallet(t.walletId) : null;
   const walletTag = wallet
     ? `<span class="wallet-tag" style="--wc:${safeColor(wallet.color)}" onclick="openWallet('${wallet.id}')" title="Wallet: ${escHtml(wallet.name)}"><span class="wallet-dot"></span>${escHtml(wallet.name)}</span>`
     : '';
   const noteSnippet = hasNote
-    ? `<div class="note-text" onclick="openNoteModal('${t.id}')" title="${escHtml(t.notes)}"><i data-lucide="file-text" class="lucide-icon icon-sm"></i> ${escHtml(t.notes.substring(0, 45))}</div>`
+    ? `<div class="note-text" onclick="openNoteModal('${t.id}')" title="${escHtml(t.notes)}"><i data-lucide="sticky-note" class="lucide-icon icon-xs"></i><span>${escHtml(t.notes.substring(0, 60))}</span></div>`
     : '';
-
+  const selected = selectable && S.txSelected.has(t.id);
   const selectCell = selectable
-    ? `<td><input type="checkbox" class="tx-cb" ${S.txSelected.has(t.id) ? 'checked' : ''} onchange="toggleTxSelect('${t.id}', this.checked)"></td>`
+    ? `<label class="tx-check"><input type="checkbox" class="tx-cb" ${selected ? 'checked' : ''} onchange="toggleTxSelect('${t.id}', this.checked)" aria-label="Seleziona"></label>`
     : '';
-  return `<tr class="${selectable && S.txSelected.has(t.id) ? 'selected' : ''}">
+  return `<div class="tx-row${selected ? ' selected' : ''}">
     ${selectCell}
-    <td class="mono small">${fmtDate(t.date)}</td>
-    <td class="desc-cell" title="${escHtml(t.description)}">
-      <div>${escHtml(t.description.substring(0, 55))}${walletTag}</div>
+    <div class="tx-avatar" style="--c:${style.color}" title="${escHtml(t.category)}"><i data-lucide="${style.icon}" class="lucide-icon"></i></div>
+    <div class="tx-main">
+      <div class="tx-title"><span class="tx-name" title="${escHtml(t.description)}">${escHtml(t.description)}</span></div>
+      <div class="tx-meta">
+        <select class="cat-select" onchange="updateTxCategory('${t.id}', this.value)" aria-label="Categoria">
+          ${cats.map(c => `<option value="${c}" ${t.category === c ? 'selected' : ''}>${c}</option>`).join('')}
+        </select>
+        ${sourceIcon(t.source)}${walletTag}
+      </div>
       ${t.details ? `<div class="tx-details" title="${escHtml(t.details)}">${escHtml(shortDetails(t.details))}</div>` : ''}
       ${noteSnippet}
-    </td>
-    <td>
-      <select class="cat-select small" onchange="updateTxCategory('${t.id}', this.value)">
-        ${cats.map(c => `<option value="${c}" ${t.category === c ? 'selected' : ''}>${c}</option>`).join('')}
-      </select>
-    </td>
-    <td class="${amtClass} mono">${fmt(t.amountEUR)}</td>
-    <td class="source-cell">${srcIcon}</td>
-    <td style="white-space:nowrap">
-      <button class="btn-icon" onclick="openEditTxModal('${t.id}')" title="Modifica transazione"><i data-lucide="pencil" class="lucide-icon icon-sm"></i></button>
-      <button class="note-btn ${hasNote ? 'has-note' : ''}" onclick="openNoteModal('${t.id}')" title="${hasNote ? 'Modifica nota' : 'Aggiungi nota'}"><i data-lucide="file-text" class="lucide-icon icon-sm"></i></button>
-      <button class="btn-icon danger" onclick="deleteTx('${t.id}')" title="Elimina"><i data-lucide="trash-2" class="lucide-icon icon-sm"></i></button>
-    </td>
-  </tr>`;
+    </div>
+    <div class="tx-side">
+      <div class="tx-amount${t.amountEUR > 0 ? ' in' : ''}">${fmtSigned(t.amountEUR)}</div>
+      <div class="tx-actions">
+        <button class="btn-icon" onclick="openEditTxModal('${t.id}')" title="Modifica"><i data-lucide="pencil" class="lucide-icon icon-sm"></i></button>
+        <button class="note-btn ${hasNote ? 'has-note' : ''}" onclick="openNoteModal('${t.id}')" title="${hasNote ? 'Modifica nota' : 'Aggiungi nota'}"><i data-lucide="sticky-note" class="lucide-icon icon-sm"></i></button>
+        <button class="btn-icon danger" onclick="deleteTx('${t.id}')" title="Elimina"><i data-lucide="trash-2" class="lucide-icon icon-sm"></i></button>
+      </div>
+    </div>
+  </div>`;
+}
+
+// Rows grouped under a header per day ("Oggi", "Ieri", "venerdì 24 ottobre")
+function renderTxList(txs, cats, selectable = false) {
+  const today = new Date();
+  const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
+  const dayLabel = date => {
+    if (date === iso(today)) return 'Oggi';
+    if (date === iso(yesterday)) return 'Ieri';
+    const d = new Date(date + 'T00:00:00');
+    return d.toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long',
+      ...(d.getFullYear() !== today.getFullYear() ? { year: 'numeric' } : {}) });
+  };
+  const groups = [];
+  txs.forEach(t => {
+    const g = groups[groups.length - 1];
+    if (g && g.date === t.date) g.txs.push(t); else groups.push({ date: t.date, txs: [t] });
+  });
+  return groups.map(g => {
+    const total = g.txs.reduce((s, t) => s + (t.amountEUR || 0), 0);
+    return `<div class="tx-day"><span>${escHtml(dayLabel(g.date))}</span><span class="tx-day-total">${fmtSigned(total)}</span></div>` +
+      g.txs.map(t => renderTxRow(t, cats, selectable)).join('');
+  }).join('');
+}
+
+function emptyState(icon, title, text, action = '') {
+  return `<div class="empty-state">
+    <div class="empty-icon"><i data-lucide="${icon}" class="lucide-icon"></i></div>
+    <strong>${title}</strong>${text ? `<p>${text}</p>` : ''}${action}
+  </div>`;
+}
+
+function emptyChart(text) {
+  return `<div class="empty-chart"><i data-lucide="pie-chart" class="lucide-icon"></i>${text}</div>`;
 }
 
 // Bank details without long reference codes (full text stays in the tooltip)
@@ -246,11 +302,15 @@ function shortDetails(details) {
 
 function renderRecentTxTable(txs) {
   if (!txs.length) {
-    set('recent-tx-body', '<tr><td colspan="6" class="empty-row">Nessuna transazione trovata per questo mese</td></tr>');
+    const filtered = S.dashFilter.search || S.dashFilter.category;
+    set('recent-tx-body', filtered
+      ? emptyState('search-x', 'Nessun risultato', 'Nessun movimento del mese corrisponde ai filtri.')
+      : emptyState('receipt', 'Nessun movimento questo mese', 'Aggiungi una spesa a mano o importa un estratto conto.',
+          `<button class="btn btn-primary btn-sm" onclick="navigate('import')"><i data-lucide="file-down" class="lucide-icon icon-sm"></i> Importa estratto</button>`));
     return;
   }
   const cats = Data.getCategories();
-  set('recent-tx-body', txs.map(t => renderTxRow(t, cats)).join(''));
+  set('recent-tx-body', renderTxList(txs, cats));
 }
 
 // ── IMPORT WIZARD ─────────────────────────────────────────────
@@ -316,7 +376,7 @@ function setupDropzone(id, handler) {
 function markDropzone(zone, filename) {
   zone.classList.add('loaded');
   zone.querySelector('.dz-label').textContent = filename;
-  zone.querySelector('.dz-icon').innerHTML = '<i data-lucide="check-circle" class="lucide-icon lucide-lg" style="color:var(--success)"></i>';
+  zone.querySelector('.dz-icon').innerHTML = '<i data-lucide="check" class="lucide-icon"></i>';
   refreshIcons();
 }
 
@@ -452,7 +512,8 @@ function processImportFiles() {
 function buildImportReviewTable() {
   const merged = S.imp.merged.length ? S.imp.merged : processImportFiles();
   if (!merged.length) {
-    set('imp-table-body', '<tr><td colspan="8" class="empty-row">Nessun file caricato o nessuna transazione trovata. Torna allo step 1.</td></tr>');
+    set('imp-table-body', `<tr><td colspan="8" class="empty-row">${emptyState('file-question', 'Niente da importare', 'Nessun file caricato o nessuna transazione trovata. Torna allo step 1.')}</td></tr>`);
+    refreshIcons();
     return;
   }
 
@@ -469,7 +530,7 @@ function buildImportReviewTable() {
 
   const noEur = merged.filter(t => t.amountEUR === null);
   const noEurBanner = noEur.length
-    ? `<div class="warn-banner"><i data-lucide="alert-triangle" class="lucide-icon icon-sm" style="margin-right:0.4rem"></i> ${noEur.length} transazioni USD senza conversione EUR. Inserisci il tasso manualmente.</div>`
+    ? `<div class="warn-banner"><i data-lucide="alert-triangle" class="lucide-icon icon-sm"></i> ${noEur.length} transazioni USD senza conversione EUR. Inserisci il tasso manualmente.</div>`
     : '';
 
   const cats = Data.getCategories();
@@ -530,11 +591,12 @@ function buildImportReviewTable() {
   const nExcluded = merged.filter(t => !t._include).length;
   const dupBanner = (nSure || nMaybe || nExcluded)
     ? `<div class="warn-banner imp-dup-banner">
-        <span><i data-lucide="copy" class="lucide-icon icon-sm" style="margin-right:0.4rem"></i>
+        <i data-lucide="copy" class="lucide-icon icon-sm"></i>
+        <span style="flex:1;min-width:200px">
         ${nSure ? `<strong>${nSure} già present${nSure === 1 ? 'e' : 'i'}</strong> sulla piattaforma (escluse). ` : ''}
         ${nMaybe ? `<strong>${nMaybe} possibil${nMaybe === 1 ? 'e duplicato' : 'i duplicati'}</strong> (stesso importo e data, descrizione diversa: inclus${nMaybe === 1 ? 'o' : 'i'}, da verificare). ` : ''}
         ${nExcluded} righe escluse in totale: spunta "Importa" per includerle.</span>
-        <span style="display:inline-flex;gap:0.4rem;margin-left:auto">
+        <span style="display:inline-flex;gap:0.4rem;flex-wrap:wrap">
           <button class="btn btn-secondary btn-sm" onclick="setImpIncludeAll(true)">Includi tutte</button>
           <button class="btn btn-secondary btn-sm" onclick="setImpIncludeAll(false)">Escludi duplicati</button>
         </span>
@@ -602,14 +664,14 @@ function buildImportSummary() {
   const catMap = {};
   expenses.forEach(t => { catMap[t.category] = (catMap[t.category]||0) + Math.abs(t.amountEUR); });
   const catRows = Object.entries(catMap).sort((a,b)=>b[1]-a[1])
-    .map(([c,v]) => `<tr><td>${c}</td><td class="mono">${fmt(v)}</td></tr>`).join('');
+    .map(([c,v]) => `<tr><td><span class="wallet-dot" style="--wc:${Charts.categoryStyle(c).color};margin-right:0.6rem"></span>${c}</td><td class="mono">${fmt(v)}</td></tr>`).join('');
 
   const excluded = S.imp.merged.filter(t => !t._include);
   const exclBanner = excluded.length
-    ? `<div class="warn-banner" style="margin-bottom:1rem">
-        <i data-lucide="copy" class="lucide-icon icon-sm" style="margin-right:0.4rem"></i>
-        <strong>${excluded.length} righe escluse</strong> (già presenti o movimenti interni) non verranno importate.
-        Torna a "Modifica" per includerle.
+    ? `<div class="warn-banner">
+        <i data-lucide="copy" class="lucide-icon icon-sm"></i>
+        <span><strong>${excluded.length} righe escluse</strong> (già presenti o movimenti interni) non verranno importate.
+        Torna a "Modifica" per includerle.</span>
       </div>`
     : '';
 
@@ -627,8 +689,10 @@ function buildImportSummary() {
       <div class="summary-card positive"><span class="summary-label">Entrate</span><span class="summary-val">${fmtCompact(totalInc)}</span></div>
       ${S.imp.exchangeInfo ? `<div class="summary-card"><span class="summary-label">Tasso EUR/USD</span><span class="summary-val">${S.imp.exchangeInfo.rate.toFixed(4)}</span></div>` : ''}
     </div>
-    <h4 style="margin: 1.5rem 0 0.75rem">Per categoria</h4>
-    <table class="summary-table"><tbody>${catRows}</tbody></table>
+    <div class="card summary-section">
+      <div class="card-head"><h3 class="card-heading">Uscite per categoria</h3></div>
+      ${catRows ? `<table class="summary-table"><tbody>${catRows}</tbody></table>` : '<p class="muted small">Nessuna uscita da importare.</p>'}
+    </div>
   `);
   refreshIcons();
 }
@@ -697,12 +761,18 @@ function renderTransactions() {
     Data.getWallets().map(w => `<option value="${w.id}" ${f.wallet === w.id ? 'selected' : ''}>${escHtml(w.name)}</option>`).join('');
 
   S.txPageIds = slice.map(t => t.id);
-  const rows = slice.map(t => renderTxRow(t, cats, true)).join('') || '<tr><td colspan="7" class="empty-row">Nessuna transazione trovata</td></tr>';
+  const filtered = f.search || f.category || f.source || f.wallet;
+  const rows = slice.length
+    ? renderTxList(slice, cats, true)
+    : filtered
+      ? emptyState('search-x', 'Nessun risultato', 'Prova a cambiare la ricerca o i filtri.')
+      : emptyState('receipt', 'Nessun movimento', f.year ? `Nessun movimento nel ${f.year}.` : 'Nessun movimento in questo mese.');
 
   set('tx-table-body', rows);
   updateTxBulkBar();
   set('tx-pagination', paginationHtml(f.page, pages, 'txPage'));
-  setText('tx-count', `${total} transazioni`);
+  setText('tx-count', `${total} moviment${total === 1 ? 'o' : 'i'}`);
+  refreshIcons();
 }
 
 async function updateTxCategory(id, cat) {
@@ -760,11 +830,9 @@ function renderWallets() {
   if (!wallets.some(w => w.id === S.walletId)) S.walletId = wallets[0]?.id || null;
 
   if (!wallets.length) {
-    set('wallet-list', `<div class="card wallet-empty">
-      <i data-lucide="wallet-cards" class="lucide-icon lucide-lg"></i>
-      <p>Nessun wallet ancora. Crea un wallet per stanziare un importo (es. un viaggio o un progetto) e assegnargli le spese.</p>
-      <button class="btn btn-primary btn-sm" onclick="openWalletModal()"><i data-lucide="plus" class="lucide-icon icon-sm"></i> Crea il primo wallet</button>
-    </div>`);
+    set('wallet-list', `<div class="card wallet-empty">${emptyState('wallet-cards', 'Nessun wallet ancora',
+      'Crea un wallet per stanziare un importo (es. un viaggio o un progetto) e assegnargli le spese.',
+      `<button class="btn btn-primary btn-sm" onclick="openWalletModal()"><i data-lucide="plus" class="lucide-icon icon-sm"></i> Crea il primo wallet</button>`)}</div>`);
     el('wallet-detail').classList.add('hidden');
     refreshIcons();
     return;
@@ -774,9 +842,10 @@ function renderWallets() {
     const st = Data.getWalletStats(w.id);
     const pct = Number.isFinite(st.pctUsed) ? Math.min(st.pctUsed, 100) : 100;
     return `<button type="button" class="wallet-card ${w.id === S.walletId ? 'active' : ''}" style="--wc:${safeColor(w.color)}" onclick="openWallet('${w.id}')">
-      <div class="wallet-card-head"><span class="wallet-dot"></span><span class="wallet-card-name">${escHtml(w.name)}</span></div>
+      <div class="wallet-card-head"><span class="wallet-avatar"><i data-lucide="wallet-cards" class="lucide-icon"></i></span><span class="wallet-card-name">${escHtml(w.name)}</span></div>
+      <div class="muted small">Saldo disponibile</div>
       <div class="wallet-card-remaining ${st.status}">${fmt(st.remaining)}</div>
-      <div class="muted small">saldo · base ${fmt(st.allocated)}${st.credits > 0 ? ` + ${fmt(st.credits)} entrate` : ''}</div>
+      <div class="muted small">base ${fmt(st.allocated)}${st.credits > 0 ? ` + ${fmt(st.credits)} entrate` : ''}</div>
       <div class="bar-track sm"><div class="bar-fill ${walletBarClass(st)}" style="width:${pct}%"></div></div>
       <div class="muted small">${st.txs.length} transazioni · ${walletPctLabel(st)} usato</div>
     </button>`;
@@ -802,7 +871,7 @@ function renderWalletDetail(id) {
     negative: `<i data-lucide="alert-triangle" class="lucide-icon icon-sm"></i> Sforato: superato di <strong>${fmt(Math.abs(st.remaining))}</strong>`
   }[st.status];
   const statusEl = el('wd-status');
-  statusEl.className = `wallet-status mb-15 ${st.status}`;
+  statusEl.className = `wallet-status ${st.status}`;
   statusEl.innerHTML = statusMsg;
 
   setText('wd-kpi-allocated', fmt(st.allocated));
@@ -824,26 +893,27 @@ function renderWalletDetail(id) {
     Charts.donut('chart-wallet-donut', st.byCategory);
   } else {
     Charts.destroy('chart-wallet-donut');
-    set('wd-donut-wrap', '<div class="empty-chart">Nessuna spesa assegnata</div>');
+    set('wd-donut-wrap', emptyChart('Nessuna spesa assegnata'));
   }
   if (st.txs.length) {
     set('wd-timeline-wrap', '<canvas id="chart-wallet-timeline"></canvas>');
     Charts.walletTimeline('chart-wallet-timeline', st.txs, st.allocated);
   } else {
     Charts.destroy('chart-wallet-timeline');
-    set('wd-timeline-wrap', '<div class="empty-chart">Nessuna spesa assegnata</div>');
+    set('wd-timeline-wrap', emptyChart('Nessun movimento assegnato'));
   }
 
-  setText('wd-tx-count', `(${st.txs.length})`);
+  setText('wd-tx-count', `${st.txs.length}`);
   const cats = Data.getCategories();
   set('wd-tx-body', st.txs.length
-    ? st.txs.map(t => renderTxRow(t, cats)).join('')
-    : '<tr><td colspan="6" class="empty-row">Nessuna transazione in questo wallet. Assegnala dal pulsante modifica di una transazione.</td></tr>');
+    ? renderTxList(st.txs, cats)
+    : emptyState('list-plus', 'Nessun movimento in questo wallet', 'Aggiungi spese esistenti dai Movimenti o registra un nuovo movimento nel wallet.',
+        `<button class="btn btn-primary btn-sm" onclick="pickTxsForWallet(S.walletId)"><i data-lucide="list-checks" class="lucide-icon icon-sm"></i> Aggiungi spese esistenti</button>`));
 }
 
 function openWalletModal(id) {
   const w = id ? Data.getWallet(id) : null;
-  set('modal-wallet-title', `<i data-lucide="wallet-cards" class="lucide-icon icon-sm"></i> ${w ? 'Modifica Wallet' : 'Nuovo Wallet'}`);
+  setText('modal-wallet-title', w ? 'Modifica wallet' : 'Nuovo wallet');
   el('wallet-id').value     = w ? w.id : '';
   el('wallet-name').value   = w ? w.name : '';
   el('wallet-amount').value = w ? (w.amount ?? 0) : '';
@@ -1117,7 +1187,7 @@ function filterTransactions() {
 function toggleTxSelect(id, on) {
   if (on) S.txSelected.add(id); else S.txSelected.delete(id);
   document.querySelectorAll('#tx-table-body .tx-cb').forEach(cb => {
-    cb.closest('tr').classList.toggle('selected', cb.checked);
+    cb.closest('.tx-row').classList.toggle('selected', cb.checked);
   });
   updateTxBulkBar();
 }
@@ -1247,11 +1317,11 @@ function renderAnalytics() {
     const annualBud  = monthlyBud * 12;
     const pct        = annualBud > 0 ? ((v / annualBud) * 100).toFixed(0) : '—';
     const cls        = annualBud > 0 && v > annualBud ? 'negative' : '';
-    return `<tr><td>${c}</td><td class="mono">${fmtCompact(v)}</td>
-      <td class="mono">${annualBud > 0 ? fmtCompact(annualBud) : '—'}</td>
-      <td class="${cls}">${pct}%</td></tr>`;
+    return `<tr><td class="ct-cat"><span class="wallet-dot" style="--wc:${Charts.categoryStyle(c).color};margin-right:0.6rem"></span>${c}</td><td class="num" data-label="Speso">${fmtCompact(v)}</td>
+      <td class="num" data-label="Budget annuo">${annualBud > 0 ? fmtCompact(annualBud) : '—'}</td>
+      <td class="num ${cls}" data-label="Utilizzo">${pct === '—' ? '—' : pct + '%'}</td></tr>`;
   }).join('');
-  set('an-cat-table-body', rows || '<tr><td colspan="4" class="empty-row">Nessun dato</td></tr>');
+  set('an-cat-table-body', rows || `<tr><td colspan="4" class="empty-row">Nessuna spesa registrata nel ${selYear}</td></tr>`);
 }
 
 function prepareBalanceForecastData(year, mode = 'monthly') {
@@ -1536,18 +1606,18 @@ function renderBudgetView() {
     const remCls = rem < 0 ? 'negative' : 'positive';
 
     return `<tr>
-      <td><strong style="font-size:0.9rem">${c}</strong></td>
-      <td>
+      <td class="bt-cat"><span class="wallet-dot" style="--wc:${Charts.categoryStyle(c).color};margin-right:0.6rem"></span><strong>${c}</strong></td>
+      <td class="bt-input">
         <input type="number" class="input-sm bg-view-input" id="bg-view-${c.replace(/\s/g,'_')}"
-          data-cat="${c}" value="${bud}" min="0" step="10" oninput="updateLiveBgViewTotals()">
+          data-cat="${c}" value="${bud}" min="0" step="10" inputmode="decimal" oninput="updateLiveBgViewTotals()" aria-label="Budget ${c}">
       </td>
-      <td class="mono">${bgState.mode === 'month' ? fmtCompact(spent) : '—'}</td>
-      <td class="mono ${remCls}">${bgState.mode === 'month' ? fmtCompact(rem) : '—'}</td>
-      <td>
+      <td class="mono bt-spent" data-label="Speso">${bgState.mode === 'month' ? fmtCompact(spent) : '—'}</td>
+      <td class="mono bt-rem ${bgState.mode === 'month' ? remCls : ''}" data-label="Rimanente">${bgState.mode === 'month' ? fmtCompact(rem) : '—'}</td>
+      <td class="bt-bar">
         ${bgState.mode === 'month' && bud > 0 ? `
-          <div style="display:flex;align-items:center;gap:0.5rem">
-            <div class="bar-track" style="flex:1;height:8px;margin:0"><div class="bar-fill ${barCls}" style="width:${pct}%"></div></div>
-            <span class="small mono" style="min-width:36px;text-align:right">${pct}%</span>
+          <div class="bt-bar-wrap">
+            <div class="bar-track"><div class="bar-fill ${barCls}" style="width:${pct}%"></div></div>
+            <span class="bt-pct">${pct}%</span>
           </div>
         ` : '<span class="muted small">—</span>'}
       </td>
@@ -1641,14 +1711,15 @@ async function saveBgViewBudgets() {
 // ── SETTINGS ──────────────────────────────────────────────────
 function renderSettings() {
   const cats     = Data.getCategories();
-  const ghCfg    = GitHub.getConfig();
+  // github.js is no longer loaded since the Firebase migration; keep the page working without it
+  const ghCfg    = typeof GitHub !== 'undefined' ? GitHub.getConfig() : {};
   const settings = Data.getSettings();
 
   // Categories list
   const catList = cats.map(c => `
     <div class="cat-item">
       <span>${c}</span>
-      <button class="btn-icon danger small" onclick="deleteCategory('${c}')">×</button>
+      <button class="btn-icon danger" onclick="deleteCategory('${c}')" title="Elimina categoria"><i data-lucide="x" class="lucide-icon icon-xs"></i></button>
     </div>`).join('');
   set('categories-list', catList);
 
@@ -1947,7 +2018,7 @@ function escHtml(str) {
 function toggleSidebar() {
   const sidebar  = el('sidebar');
   const overlay  = el('sidebar-overlay');
-  const isMobile = window.innerWidth <= 768;
+  const isMobile = window.innerWidth <= MOBILE_BP;
 
   if (isMobile) {
     sidebar.classList.toggle('mobile-open');
@@ -1956,6 +2027,18 @@ function toggleSidebar() {
     sidebar.classList.toggle('collapsed');
     el('main-content').classList.toggle('sidebar-collapsed');
   }
+}
+
+function closeMobileSheet() {
+  el('sidebar')?.classList.remove('mobile-open');
+  el('sidebar-overlay')?.classList.remove('visible');
+}
+
+// Close the top-most open modal (or the mobile sheet)
+function closeTopLayer() {
+  const open = [...document.querySelectorAll('.modal-overlay:not(.hidden)')];
+  if (open.length) { open[open.length - 1].classList.add('hidden'); return; }
+  closeMobileSheet();
 }
 
 // ── Theme toggle ──────────────────────────────────────────────
@@ -1969,11 +2052,8 @@ function applyTheme(theme) {
   document.documentElement.setAttribute('data-theme', theme);
   localStorage.setItem('fc-theme', theme);
   updateThemeButton(theme);
-  // Update Chart.js colors on theme change
-  if (typeof Chart !== 'undefined') {
-    Chart.defaults.color = theme === 'light' ? '#636366' : '#8e8e93';
-    Chart.defaults.borderColor = theme === 'light' ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.08)';
-  }
+  // Chart.js colours follow the CSS theme
+  if (typeof Charts !== 'undefined') Charts.applyTheme();
 }
 
 function updateThemeButton(theme) {
@@ -1984,11 +2064,11 @@ function updateThemeButton(theme) {
   if (theme === 'dark') {
     if (lightIcon) lightIcon.style.display = 'inline-block';
     if (darkIcon)  darkIcon.style.display  = 'none';
-    toggleBtn.querySelector('span:not(.nav-icon)').textContent = 'Tema Chiaro';
+    toggleBtn.querySelector('span:not(.nav-icon)').textContent = 'Tema chiaro';
   } else {
     if (lightIcon) lightIcon.style.display = 'none';
     if (darkIcon)  darkIcon.style.display  = 'inline-block';
-    toggleBtn.querySelector('span:not(.nav-icon)').textContent = 'Tema Scuro';
+    toggleBtn.querySelector('span:not(.nav-icon)').textContent = 'Tema scuro';
   }
 }
 
@@ -2084,6 +2164,22 @@ document.addEventListener('DOMContentLoaded', () => {
       navigate(link.dataset.view);
     });
   });
+
+  // Mobile tab bar: "Altro" opens the full menu as a bottom sheet
+  document.querySelectorAll('.tab-link').forEach(link => {
+    link.addEventListener('click', e => {
+      e.preventDefault();
+      if (link.dataset.view === 'more') toggleSidebar();
+      else navigate(link.dataset.view);
+    });
+  });
+
+  // Modals: close on backdrop click and Escape
+  document.querySelectorAll('.modal-overlay').forEach(ov => {
+    ov.addEventListener('mousedown', e => { if (e.target === ov) ov.classList.add('hidden'); });
+  });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeTopLayer(); });
+  window.addEventListener('resize', () => { if (window.innerWidth > MOBILE_BP) closeMobileSheet(); });
 
   // Import dropzones
   setupDropzone('dz-rev-eur', handleRevolutEUR);
