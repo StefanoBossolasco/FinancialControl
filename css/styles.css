@@ -732,7 +732,7 @@ input[type="number"]::-webkit-inner-spin-button { opacity: 0.3; }
 .step.active .step-name { color: var(--text); }
 .step-sep    { flex: 0 0 40px; height: 1px; background: var(--glass-b); }
 
-.dz-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.25rem; margin-bottom: 2.25rem; }
+.dz-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.25rem; margin-bottom: 2.25rem; }
 
 .dropzone {
   border: 2px dashed var(--glass-b);
@@ -1117,8 +1117,6 @@ tbody tr.selected td { background: var(--primary-g); }
   .modal-content { max-width: 100%; margin: 0.5rem; border-radius: var(--radius); }
   .imp-nav { flex-direction: column; gap: 0.75rem; }
   .imp-nav .btn { width: 100%; }
-  #imp-dup-btns { width: 100%; flex-direction: column; }
-  #imp-dup-btns .btn { width: 100%; }
 
   /* Tabelle scrollabili su mobile */
   .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
@@ -1164,3 +1162,24 @@ tbody tr.selected td { background: var(--primary-g); }
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+/* ── IMPORT PREVIEW: duplicates, details, suggestions ─────────── */
+.src-badge.satispay { background: var(--danger-g); color: var(--danger); }
+.tx-details {
+  font-size: 0.72rem; color: var(--text3); margin-top: 0.15rem;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.imp-tag {
+  display: inline-block; margin-right: 0.4rem; padding: 0.1rem 0.45rem;
+  border-radius: 6px; font-size: 0.66rem; font-weight: 700; vertical-align: middle;
+}
+.imp-tag.dup   { background: var(--danger-g); color: var(--danger); }
+.imp-tag.maybe { background: var(--warning-g); color: var(--warning); }
+tr.imp-row-sure  { box-shadow: inset 3px 0 0 var(--danger); }
+tr.imp-row-maybe { box-shadow: inset 3px 0 0 var(--warning); }
+tr.imp-excluded td { opacity: 0.5; }
+tr.imp-excluded td:nth-child(2) { opacity: 1; }
+.imp-dup-banner { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+.cat-suggest { font-size: 0.66rem; color: var(--text3); margin-top: 0.2rem; }
+.cat-suggest.history { color: var(--success); }
+.cat-suggest.rules   { color: var(--info); }

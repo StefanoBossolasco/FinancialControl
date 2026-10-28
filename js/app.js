@@ -18,6 +18,7 @@ const S = {
     eurParsed:    null,  // { transactions, exchanges }
     usdParsed:    null,
     intesaTxs:    null,
+    satispayTxs:  null,
     exchangeInfo: null,  // { rate, totalEur, totalUsd, pairs }
     merged:       [],    // all transactions to review
     page:         0,
@@ -219,6 +220,7 @@ function renderTxRow(t, cats, selectable = false) {
     <td class="mono small">${fmtDate(t.date)}</td>
     <td class="desc-cell" title="${escHtml(t.description)}">
       <div>${escHtml(t.description.substring(0, 55))}${walletTag}</div>
+      ${t.details ? `<div class="tx-details" title="${escHtml(t.details)}">${escHtml(shortDetails(t.details))}</div>` : ''}
       ${noteSnippet}
     </td>
     <td>
@@ -234,6 +236,12 @@ function renderTxRow(t, cats, selectable = false) {
       <button class="btn-icon danger" onclick="deleteTx('${t.id}')" title="Elimina"><i data-lucide="trash-2" class="lucide-icon icon-sm"></i></button>
     </td>
   </tr>`;
+}
+
+// Bank details without long reference codes (full text stays in the tooltip)
+function shortDetails(details) {
+  return details.replace(/(?<!@)\b(?=[A-Za-z]*\d)[A-Za-z0-9]{10,}\b/g, '').replace(/^\s*COD\.?\s*DISP\.?/i, '')
+    .replace(/\s+/g, ' ').trim().substring(0, 90);
 }
 
 function renderRecentTxTable(txs) {
@@ -258,7 +266,7 @@ function resetImportIfNeeded() {
 
 function resetImport() {
   S.imp = {
-    step: 1, eurParsed: null, usdParsed: null, intesaTxs: null,
+    step: 1, eurParsed: null, usdParsed: null, intesaTxs: null, satispayTxs: null,
     exchangeInfo: null, merged: [], page: 0, PAGE_SIZE: 40, manualRate: null
   };
 }
@@ -269,7 +277,7 @@ function showImportStep(step) {
   el(`imp-step-${step}`)?.classList.remove('hidden');
 
   // Step indicators
-  document.querySelectorAll('.step-indicator .step').forEach((s, i) => {
+  document.querySelectorAll('.step-indicators .step').forEach((s, i) => {
     s.classList.toggle('active',   i + 1 === step);
     s.classList.toggle('done',     i + 1 < step);
   });
@@ -292,7 +300,7 @@ function setupDropzone(id, handler) {
     if (e.target && e.target.tagName === 'INPUT') return;
     const inp = document.createElement('input');
     inp.type = 'file';
-    inp.accept = id.includes('intesa') ? '.xlsx,.xls' : '.csv';
+    inp.accept = id.includes('intesa') ? '.xlsx,.xls' : id.includes('satispay') ? '.xlsx,.xls,.csv' : '.csv';
     inp.style.display = 'none';
     document.body.appendChild(inp);
     inp.onchange = () => {
@@ -365,6 +373,25 @@ function handleIntesa(file, zone) {
   reader.readAsArrayBuffer(file);
 }
 
+function handleSatispay(file, zone) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      S.imp.satispayTxs = Import.parseSatispayXLSX(new Uint8Array(e.target.result));
+      if (!S.imp.satispayTxs.length) {
+        showToast('Nessuna transazione valida trovata in ' + file.name, 'warning');
+        return;
+      }
+      markDropzone(zone, file.name);
+      showToast(`Satispay: ${S.imp.satispayTxs.length} righe caricate`, 'success');
+    } catch (err) {
+      console.error('[handleSatispay] Errore parsing Satispay:', err);
+      showToast('Errore nel file Satispay: ' + err.message, 'error');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
 function processImportFiles() {
   let merged = [];
   let exchangeInfo = null;
@@ -398,9 +425,18 @@ function processImportFiles() {
 
   // Intesa
   if (S.imp.intesaTxs) merged.push(...S.imp.intesaTxs);
+  if (S.imp.satispayTxs) merged.push(...S.imp.satispayTxs);
 
-  // Sort by date
+  // Sort by date, work on copies so going back to step 1 re-parses cleanly
+  merged = merged.map(t => ({ ...t }));
   merged.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+  // Suggest categories from your history, then flag rows already on the platform.
+  // Duplicates and internal Satispay movements start excluded; you can include them by hand.
+  const existing = Data.getTransactions({});
+  Import.categorize(merged, existing);
+  Import.findDuplicates(merged, existing);
+  merged.forEach(t => { t._include = !(t._dup?.level === 'sure' || t._internal); });
   S.imp.merged = merged;
 
   if (!rate && merged.some(t => t.currency === 'USD')) {
@@ -416,7 +452,7 @@ function processImportFiles() {
 function buildImportReviewTable() {
   const merged = S.imp.merged.length ? S.imp.merged : processImportFiles();
   if (!merged.length) {
-    set('imp-table-body', '<tr><td colspan="7" class="empty-row">Nessun file caricato o nessuna transazione trovata. Torna allo step 1.</td></tr>');
+    set('imp-table-body', '<tr><td colspan="8" class="empty-row">Nessun file caricato o nessuna transazione trovata. Torna allo step 1.</td></tr>');
     return;
   }
 
@@ -450,17 +486,31 @@ function buildImportReviewTable() {
   const page  = S.imp.page;
   const slice = merged.slice(page * S.imp.PAGE_SIZE, (page + 1) * S.imp.PAGE_SIZE);
 
-  set('import-exchange-info', rateBanner + noEurBanner);
-
   const rows = slice.map((t, localIdx) => {
     const globalIdx = page * S.imp.PAGE_SIZE + localIdx;
     const amtClass  = t.amountEUR === null ? 'no-eur' : (t.amountEUR < 0 ? 'negative' : 'positive');
     const eurCell   = t.amountEUR !== null ? fmt(t.amountEUR) : '—';
     const fmtAmt    = `${t.amount < 0 ? '' : '+'}${t.amount.toFixed(2)} ${t.currency}`;
-    return `<tr>
+    const dup       = t._dup;
+    const dupTag    = dup
+      ? `<span class="imp-tag ${dup.level === 'sure' ? 'dup' : 'maybe'}" title="${escHtml(`Sulla piattaforma: ${dup.match.date} · ${dup.match.description} · ${fmt(dup.match.amountEUR ?? dup.match.amount)}`)}">${dup.level === 'sure' ? 'Già presente' : 'Possibile duplicato'}</span>`
+      : '';
+    const internalTag = t._internal ? '<span class="imp-tag maybe" title="Movimento tra Satispay e salvadanaio/banca: escluso di default">Interno</span>' : '';
+    const details   = t.details
+      ? `<div class="tx-details" title="${escHtml(t.details)}">${escHtml(shortDetails(t.details))}</div>`
+      : '';
+    const sug       = t._suggest && !t._catEdited
+      ? `<div class="cat-suggest ${t._suggest.by}" title="Categoria suggerita da: ${escHtml(t._suggest.label)}">${escHtml(t._suggest.label)}</div>`
+      : '';
+    const rowClass  = [t._include ? '' : 'imp-excluded', dup ? `imp-row-${dup.level}` : ''].join(' ').trim();
+    return `<tr class="${rowClass}">
       <td><input type="checkbox" class="imp-cb" data-idx="${globalIdx}"></td>
+      <td><input type="checkbox" class="imp-include" ${t._include ? 'checked' : ''} onchange="toggleImpInclude(${globalIdx}, this.checked)" title="Includi nell'importazione"></td>
       <td class="mono small">${t.date}</td>
-      <td class="desc-cell" title="${escHtml(t.description)}">${escHtml(t.description.substring(0,55))}</td>
+      <td class="desc-cell" title="${escHtml(t.description)}">
+        <div>${dupTag}${internalTag}${escHtml(t.description.substring(0,55))}</div>
+        ${details}
+      </td>
       <td class="mono small">${fmtAmt}</td>
       <td class="${amtClass} mono small">${eurCell}</td>
       <td class="source-cell small">${sourceIcon(t.source)}</td>
@@ -469,13 +519,32 @@ function buildImportReviewTable() {
           <option value="">— Categoria —</option>
           ${cats.map(c => `<option value="${c}" ${t.category === c ? 'selected' : ''}>${c}</option>`).join('')}
         </select>
+        ${sug}
       </td>
     </tr>`;
   }).join('');
 
+  // Duplicate / exclusion banner
+  const nSure     = merged.filter(t => t._dup?.level === 'sure').length;
+  const nMaybe    = merged.filter(t => t._dup?.level === 'maybe').length;
+  const nExcluded = merged.filter(t => !t._include).length;
+  const dupBanner = (nSure || nMaybe || nExcluded)
+    ? `<div class="warn-banner imp-dup-banner">
+        <span><i data-lucide="copy" class="lucide-icon icon-sm" style="margin-right:0.4rem"></i>
+        ${nSure ? `<strong>${nSure} già present${nSure === 1 ? 'e' : 'i'}</strong> sulla piattaforma (escluse). ` : ''}
+        ${nMaybe ? `<strong>${nMaybe} possibil${nMaybe === 1 ? 'e duplicato' : 'i duplicati'}</strong> (stesso importo e data, descrizione diversa: inclus${nMaybe === 1 ? 'o' : 'i'}, da verificare). ` : ''}
+        ${nExcluded} righe escluse in totale: spunta "Importa" per includerle.</span>
+        <span style="display:inline-flex;gap:0.4rem;margin-left:auto">
+          <button class="btn btn-secondary btn-sm" onclick="setImpIncludeAll(true)">Includi tutte</button>
+          <button class="btn btn-secondary btn-sm" onclick="setImpIncludeAll(false)">Escludi duplicati</button>
+        </span>
+      </div>`
+    : '';
+  set('import-exchange-info', rateBanner + noEurBanner + dupBanner);
+
   set('imp-table-body', rows);
   set('imp-pagination', paginationHtml(page, pages, 'impPage'));
-  setText('imp-count-label', `${total} transazioni`);
+  setText('imp-count-label', `${merged.filter(t => t._include).length} da importare su ${total}`);
 
   // Bulk category options
   set('bulk-cat-options', catOptions);
@@ -483,7 +552,20 @@ function buildImportReviewTable() {
 }
 
 function updateImpCategory(idx, cat) {
-  if (S.imp.merged[idx]) S.imp.merged[idx].category = cat;
+  if (S.imp.merged[idx]) { S.imp.merged[idx].category = cat; S.imp.merged[idx]._catEdited = true; }
+}
+
+function toggleImpInclude(idx, on) {
+  if (S.imp.merged[idx]) S.imp.merged[idx]._include = on;
+  buildImportReviewTable();
+}
+
+// true: include every row; false: back to defaults for duplicates (exclude sure ones)
+function setImpIncludeAll(on) {
+  S.imp.merged.forEach(t => {
+    t._include = on ? true : !(t._dup?.level === 'sure' || t._internal);
+  });
+  buildImportReviewTable();
 }
 
 function applyBulkCategory() {
@@ -491,7 +573,7 @@ function applyBulkCategory() {
   if (!cat) { showToast('Seleziona una categoria', 'warning'); return; }
   document.querySelectorAll('.imp-cb:checked').forEach(cb => {
     const idx = parseInt(cb.dataset.idx);
-    if (S.imp.merged[idx]) S.imp.merged[idx].category = cat;
+    if (S.imp.merged[idx]) { S.imp.merged[idx].category = cat; S.imp.merged[idx]._catEdited = true; }
   });
   buildImportReviewTable();
   showToast('Categoria applicata', 'success');
@@ -510,9 +592,9 @@ function applyManualRate() {
 }
 
 function buildImportSummary() {
-  const valid = S.imp.merged.filter(t => t.amountEUR !== null);
-  const expenses = valid.filter(t => t.amountEUR < 0);
-  const income   = valid.filter(t => t.amountEUR >= 0);
+  const toImport = importableRows();
+  const expenses = toImport.filter(t => t.amountEUR < 0);
+  const income   = toImport.filter(t => t.amountEUR >= 0);
   const totalExp = expenses.reduce((s,t) => s + Math.abs(t.amountEUR), 0);
   const totalInc = income.reduce((s,t) => s + t.amountEUR, 0);
 
@@ -522,46 +604,25 @@ function buildImportSummary() {
   const catRows = Object.entries(catMap).sort((a,b)=>b[1]-a[1])
     .map(([c,v]) => `<tr><td>${c}</td><td class="mono">${fmt(v)}</td></tr>`).join('');
 
-  // ── Duplicate detection ────────────────────────────────────
-  const existing = new Set(Data.getTransactions({}).map(t => t.id));
-  const duplicates = S.imp.merged.filter(t => existing.has(t.id));
-  const newOnes    = S.imp.merged.filter(t => !existing.has(t.id) && t.amountEUR !== null && t.category !== '__exchange__');
-  S.imp.duplicatesFound = duplicates.length;
-  S.imp.newOnesCount    = newOnes.length;
-
-  // Duplicate banner (yellow) shown only when there are duplicates
-  const dupBanner = duplicates.length > 0
+  const excluded = S.imp.merged.filter(t => !t._include);
+  const exclBanner = excluded.length
     ? `<div class="warn-banner" style="margin-bottom:1rem">
         <i data-lucide="copy" class="lucide-icon icon-sm" style="margin-right:0.4rem"></i>
-        <strong>${duplicates.length} transazioni già presenti nei tuoi dati.</strong>
-        Vuoi importare solo le ${newOnes.length} nuove?
+        <strong>${excluded.length} righe escluse</strong> (già presenti o movimenti interni) non verranno importate.
+        Torna a "Modifica" per includerle.
       </div>`
     : '';
 
-  // Buttons for step 3 nav (injected here, controlled via data attr)
-  const importBtns = duplicates.length > 0
-    ? `<button class="btn btn-primary" onclick="confirmImport(true)" style="margin-right:0.5rem">
-         <i data-lucide="check-circle" class="lucide-icon icon-sm"></i>
-         Importa Solo Nuove (${newOnes.length})
-       </button>
-       <button class="btn btn-secondary" onclick="confirmImport(false)">
-         <i data-lucide="layers" class="lucide-icon icon-sm"></i>
-         Importa Tutte (inclusi ${duplicates.length} duplicati)
-       </button>`
-    : '';
-
-  // Inject extra buttons into step-3 nav (alongside existing confirm btn)
-  const extraBtnsEl = el('imp-dup-btns');
-  if (extraBtnsEl) extraBtnsEl.innerHTML = importBtns;
-
-  // Hide/show the standard confirm button depending on duplicates
   const confirmBtn = el('imp-confirm-btn');
-  if (confirmBtn) confirmBtn.style.display = duplicates.length > 0 ? 'none' : '';
+  if (confirmBtn) {
+    confirmBtn.disabled = !toImport.length;
+    confirmBtn.innerHTML = `<i data-lucide="check" class="lucide-icon icon-sm"></i> Importa ${toImport.length} transazioni`;
+  }
 
   set('imp-summary-body', `
-    ${dupBanner}
+    ${exclBanner}
     <div class="summary-grid">
-      <div class="summary-card"><span class="summary-label">Transazioni</span><span class="summary-val">${valid.length}</span></div>
+      <div class="summary-card"><span class="summary-label">Da importare</span><span class="summary-val">${toImport.length}</span></div>
       <div class="summary-card negative"><span class="summary-label">Uscite</span><span class="summary-val">${fmtCompact(totalExp)}</span></div>
       <div class="summary-card positive"><span class="summary-label">Entrate</span><span class="summary-val">${fmtCompact(totalInc)}</span></div>
       ${S.imp.exchangeInfo ? `<div class="summary-card"><span class="summary-label">Tasso EUR/USD</span><span class="summary-val">${S.imp.exchangeInfo.rate.toFixed(4)}</span></div>` : ''}
@@ -572,17 +633,23 @@ function buildImportSummary() {
   refreshIcons();
 }
 
-async function confirmImport(onlyNew = false) {
-  let toSave;
-  if (onlyNew) {
-    const existing = new Set(Data.getTransactions({}).map(t => t.id));
-    toSave = S.imp.merged.filter(t => !existing.has(t.id) && t.amountEUR !== null && t.category !== '__exchange__');
-  } else {
-    toSave = S.imp.merged.filter(t => t.amountEUR !== null && t.category !== '__exchange__');
-  }
+// Rows the user kept in the preview, ready to save
+function importableRows() {
+  return S.imp.merged.filter(t => t._include && t.amountEUR !== null && t.category !== '__exchange__');
+}
+
+async function confirmImport() {
+  // Drop preview-only fields (prefixed with _) before saving
+  const toSave = importableRows().map(t => {
+    const tx = {};
+    Object.keys(t).forEach(k => { if (!k.startsWith('_') && t[k] !== undefined) tx[k] = t[k]; });
+    if (!tx.category) tx.category = 'Altro';
+    return tx;
+  });
   if (!toSave.length) { showToast('Nessuna transazione valida da importare', 'warning'); return; }
 
   showToast('Salvataggio su Firebase…', 'info');
+  // addTransactions skips ids already stored, so existing rows (and their wallet) are never overwritten
   const added = await Data.addTransactions(toSave);
 
   // Save exchange rates
@@ -1867,6 +1934,7 @@ function sourceIcon(source) {
     case 'revolut_eur': return '<span class="src-badge rev" title="Revolut EUR">R€</span>';
     case 'revolut_usd': return '<span class="src-badge rev-usd" title="Revolut USD">R$</span>';
     case 'intesa':      return '<span class="src-badge intesa" title="Intesa San Paolo">IS</span>';
+    case 'satispay':    return '<span class="src-badge satispay" title="Satispay">SP</span>';
     default:            return '<span class="src-badge other">—</span>';
   }
 }
@@ -2021,23 +2089,27 @@ document.addEventListener('DOMContentLoaded', () => {
   setupDropzone('dz-rev-eur', handleRevolutEUR);
   setupDropzone('dz-rev-usd', handleRevolutUSD);
   setupDropzone('dz-intesa',  handleIntesa);
+  setupDropzone('dz-satispay', handleSatispay);
 
   // Import controls
   el('imp-next-1')?.addEventListener('click', () => {
     const hasEur = S.imp.eurParsed?.transactions?.length > 0;
     const hasUsd = S.imp.usdParsed?.transactions?.length > 0;
     const hasInt = S.imp.intesaTxs?.length > 0;
-    if (!hasEur && !hasUsd && !hasInt) { showToast('Carica almeno un file valido prima di proseguire', 'warning'); return; }
+    const hasSat = S.imp.satispayTxs?.length > 0;
+    // Re-run parsing merge, categories and duplicate check with the files now loaded
+    S.imp.merged = []; S.imp.page = 0;
+    if (!hasEur && !hasUsd && !hasInt && !hasSat) { showToast('Carica almeno un file valido prima di proseguire', 'warning'); return; }
     showImportStep(2);
   });
   el('imp-back-2')?.addEventListener('click', () => showImportStep(1));
   el('imp-next-2')?.addEventListener('click', () => {
-    const noEur = S.imp.merged.filter(t => t.amountEUR === null);
+    const noEur = S.imp.merged.filter(t => t._include && t.amountEUR === null);
     if (noEur.length > 0) { showToast(`${noEur.length} transazioni senza EUR. Inserisci il tasso.`, 'warning'); return; }
     showImportStep(3);
   });
   el('imp-back-3')?.addEventListener('click', () => showImportStep(2));
-  el('imp-confirm-btn')?.addEventListener('click', confirmImport);
+  el('imp-confirm-btn')?.addEventListener('click', () => confirmImport());
   el('imp-reset-btn')?.addEventListener('click', () => { resetImport(); showImportStep(1); });
 
   // Bulk category & manual rate

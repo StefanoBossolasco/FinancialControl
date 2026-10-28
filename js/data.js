@@ -141,7 +141,8 @@ const Data = (() => {
     if (filters.search) {
       const s = filters.search.toLowerCase();
       txs = txs.filter(t => t.description.toLowerCase().includes(s) ||
-        (t.notes && t.notes.toLowerCase().includes(s)));
+        (t.notes && t.notes.toLowerCase().includes(s)) ||
+        (t.details && t.details.toLowerCase().includes(s)));
     }
     if (filters.type === 'expense') txs = txs.filter(t => t.amountEUR < 0);
     if (filters.type === 'income')  txs = txs.filter(t => t.amountEUR > 0);

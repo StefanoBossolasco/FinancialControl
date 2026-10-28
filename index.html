@@ -20,7 +20,7 @@
   <!-- Lucide Icons -->
   <script src="https://cdn.jsdelivr.net/npm/lucide@0.395.0/dist/umd/lucide.min.js"></script>
 
-  <link rel="stylesheet" href="css/styles.css?v=1.2.0">
+  <link rel="stylesheet" href="css/styles.css?v=1.3.0">
 </head>
 <body>
 
@@ -512,6 +512,12 @@
               <div class="dz-label">Intesa San Paolo</div>
               <div class="dz-hint">File .xlsx da Area Clienti</div>
             </div>
+            <!-- Satispay -->
+            <div class="dropzone" id="dz-satispay">
+              <div class="dz-icon"><i data-lucide="smartphone" class="lucide-icon lucide-lg" style="color:var(--danger)"></i></div>
+              <div class="dz-label">Satispay</div>
+              <div class="dz-hint">Export .xlsx o .csv dall'app</div>
+            </div>
           </div>
           <div class="imp-nav">
             <span></span>
@@ -548,6 +554,7 @@
               <thead>
                 <tr>
                   <th style="width:36px"><input type="checkbox" id="select-all-imp-head" onchange="document.getElementById('select-all-imp').click()"></th>
+                  <th style="width:56px" title="Righe da importare">Importa</th>
                   <th>Data</th><th>Descrizione</th>
                   <th>Importo orig.</th><th>EUR</th>
                   <th>Fonte</th><th>Categoria</th>
@@ -575,8 +582,6 @@
             <button class="btn btn-secondary" id="imp-back-3">
               <i data-lucide="arrow-left" class="lucide-icon icon-sm"></i> Modifica
             </button>
-            <!-- Duplicate-aware import buttons injected here by buildImportSummary -->
-            <div id="imp-dup-btns" style="display:inline-flex;gap:0.5rem;flex-wrap:wrap"></div>
             <button class="btn btn-success" id="imp-confirm-btn">
               <i data-lucide="check" class="lucide-icon icon-sm"></i> Importa le transazioni
             </button>
@@ -610,6 +615,7 @@
               <option value="revolut_eur">Revolut EUR</option>
               <option value="revolut_usd">Revolut USD</option>
               <option value="intesa">Intesa San Paolo</option>
+              <option value="satispay">Satispay</option>
             </select>
             <select id="tx-filter-year" class="select-styled">
               <option value="">Mese corrente</option>
@@ -1156,10 +1162,10 @@
 <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-firestore-compat.js"></script>
 <script src="js/firebase.js?v=2.0"></script>
 <script src="js/auth.js?v=2.0"></script>
-<script src="js/data.js?v=2.3"></script>
-<script src="js/import.js?v=2.0"></script>
+<script src="js/data.js?v=2.4"></script>
+<script src="js/import.js?v=3.0"></script>
 <script src="js/charts.js?v=2.3"></script>
-<script src="js/app.js?v=2.3"></script>
+<script src="js/app.js?v=2.4"></script>
 
 </body>
 </html>
