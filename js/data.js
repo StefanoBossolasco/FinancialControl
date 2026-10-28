@@ -6,6 +6,7 @@ const Data = (() => {
     version: '1.0.0',
     transactions: [],
     budgets: { default: {} },
+    wallets: [],
     exchangeRates: [],
     categories: [
       'Affitto & Casa','Spesa Alimentare','Ristoranti & Bar',
@@ -20,12 +21,22 @@ const Data = (() => {
   let _data = null;
   let _uid  = null;
   let _unsubTx = null;
+  let _unsubWallets = null;
 
   const metaDoc   = () => fbDb.doc(`users/${_uid}/meta/main`);
   const txCol     = () => fbDb.collection(`users/${_uid}/transactions`);
   const txDoc     = (id) => fbDb.doc(`users/${_uid}/transactions/${id}`);
   const budgetDoc = (key) => fbDb.doc(`users/${_uid}/budgets/${key}`);
   const budgetCol = () => fbDb.collection(`users/${_uid}/budgets`);
+  const walletCol = () => fbDb.collection(`users/${_uid}/wallets`);
+  const walletDoc = (id) => fbDb.doc(`users/${_uid}/wallets/${id}`);
+
+  function rerenderIfVisible() {
+    if (typeof S !== 'undefined' && typeof navigate === 'function' && typeof showScreen !== 'undefined') {
+      const screen = document.getElementById('screen-app');
+      if (screen && !screen.classList.contains('hidden')) navigate(S.view);
+    }
+  }
 
   async function init(uid) {
     _uid  = uid;
@@ -51,6 +62,11 @@ const Data = (() => {
       snap.docs.forEach(d => { _data.budgets[d.id] = d.data(); });
     } catch(e) { console.warn('budget load failed:', e); }
 
+    try {
+      const snap = await walletCol().get();
+      _data.wallets = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    } catch(e) { console.warn('wallet load failed:', e); }
+
     if (_unsubTx) _unsubTx();
     _unsubTx = txCol().onSnapshot(snap => {
       snap.docChanges().forEach(change => {
@@ -63,17 +79,22 @@ const Data = (() => {
           _data.transactions = _data.transactions.filter(t => t.id !== change.doc.id);
         }
       });
-      if (typeof S !== 'undefined' && typeof navigate === 'function' && typeof showScreen !== 'undefined') {
-        const screen = document.getElementById('screen-app');
-        if (screen && !screen.classList.contains('hidden')) navigate(S.view);
-      }
+      rerenderIfVisible();
     }, err => console.warn('tx snapshot error:', err));
+
+    if (_unsubWallets) _unsubWallets();
+    _unsubWallets = walletCol().onSnapshot(snap => {
+      if (snap.metadata.hasPendingWrites) return;
+      _data.wallets = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      rerenderIfVisible();
+    }, err => console.warn('wallet snapshot error:', err));
 
     return _data;
   }
 
   function cleanup() {
     if (_unsubTx) { _unsubTx(); _unsubTx = null; }
+    if (_unsubWallets) { _unsubWallets(); _unsubWallets = null; }
     _data = null;
     _uid  = null;
   }
@@ -102,6 +123,10 @@ const Data = (() => {
     for (const [key, val] of Object.entries(_data.budgets)) {
       await budgetDoc(key).set(val);
     }
+    for (const w of _data.wallets || []) {
+      const { id, ...rest } = w;
+      await walletDoc(id).set(rest);
+    }
   }
 
   function getTransactions(filters = {}) {
@@ -111,6 +136,7 @@ const Data = (() => {
     if (filters.year)     txs = txs.filter(t => t.year === parseInt(filters.year));
     if (filters.category) txs = txs.filter(t => t.category === filters.category);
     if (filters.source)   txs = txs.filter(t => t.source   === filters.source);
+    if (filters.walletId) txs = txs.filter(t => t.walletId === filters.walletId);
     if (filters.search) {
       const s = filters.search.toLowerCase();
       txs = txs.filter(t => t.description.toLowerCase().includes(s) ||
@@ -140,8 +166,11 @@ const Data = (() => {
     if (!_data) return false;
     const idx = _data.transactions.findIndex(t => t.id === id);
     if (idx < 0) return false;
-    _data.transactions[idx] = { ..._data.transactions[idx], ...updates };
-    await txDoc(id).set(_data.transactions[idx]);
+    const merged = { ..._data.transactions[idx], ...updates };
+    // An undefined value removes the field (e.g. walletId when unassigning)
+    Object.keys(merged).forEach(k => { if (merged[k] === undefined) delete merged[k]; });
+    _data.transactions[idx] = merged;
+    await txDoc(id).set(merged);
     return true;
   }
 
@@ -199,6 +228,63 @@ const Data = (() => {
     const totalEur = rates.reduce((s, r) => s + r.eurSpent, 0);
     const totalUsd = rates.reduce((s, r) => s + r.usdReceived, 0);
     return totalEur > 0 ? totalUsd / totalEur : null;
+  }
+
+  // ── Wallets ─────────────────────────────────────────────────
+  // users/{uid}/wallets/{id}: { name, amount, color, startDate?, endDate?, notes?, createdAt }
+  // Transactions reference a wallet through the optional `walletId` field.
+  function getWallets() {
+    if (!_data) return [];
+    return [...(_data.wallets || [])].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  }
+
+  function getWallet(id) {
+    return _data ? (_data.wallets || []).find(w => w.id === id) || null : null;
+  }
+
+  async function saveWallet(wallet) {
+    if (!_data) return null;
+    const id = wallet.id || ('w_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 6));
+    const existing = getWallet(id);
+    const doc = { createdAt: existing?.createdAt || new Date().toISOString() };
+    for (const [k, v] of Object.entries(wallet)) {
+      if (k !== 'id' && v !== undefined && v !== '' && v !== null) doc[k] = v;
+    }
+    _data.wallets = (_data.wallets || []).filter(w => w.id !== id).concat([{ id, ...doc }]);
+    await walletDoc(id).set(doc);
+    return id;
+  }
+
+  async function deleteWallet(id) {
+    if (!_data) return;
+    _data.wallets = (_data.wallets || []).filter(w => w.id !== id);
+    const assigned = _data.transactions.filter(t => t.walletId === id);
+    let batch = fbDb.batch();
+    let count = 0;
+    for (const tx of assigned) {
+      delete tx.walletId;
+      batch.update(txDoc(tx.id), { walletId: firebase.firestore.FieldValue.delete() });
+      if (++count >= 499) { await batch.commit(); batch = fbDb.batch(); count = 0; }
+    }
+    batch.delete(walletDoc(id));
+    await batch.commit();
+  }
+
+  function getWalletStats(id) {
+    const wallet = getWallet(id);
+    if (!wallet) return null;
+    const txs = getTransactions({ walletId: id });
+    const allocated = Number(wallet.amount) || 0;
+    const spent   = txs.filter(t => t.amountEUR < 0).reduce((s, t) => s + Math.abs(t.amountEUR), 0);
+    const credits = txs.filter(t => t.amountEUR > 0).reduce((s, t) => s + t.amountEUR, 0);
+    const available = allocated + credits;
+    const remaining = available - spent;
+    const pctUsed = available > 0 ? (spent / available) * 100 : (spent > 0 ? Infinity : 0);
+    const byCategory = {};
+    txs.filter(t => t.amountEUR < 0)
+      .forEach(t => { byCategory[t.category] = (byCategory[t.category] || 0) + Math.abs(t.amountEUR); });
+    const status = remaining > 0.005 ? 'positive' : remaining < -0.005 ? 'negative' : 'zero';
+    return { wallet, txs, allocated, spent, credits, available, remaining, pctUsed, byCategory, status };
   }
 
   function getCategories() { return _data ? _data.categories : []; }
@@ -298,7 +384,7 @@ const Data = (() => {
 
   async function clearAll() {
     await clearAllTransactions();
-    if (_data) { _data.budgets = { default: {} }; _data.settings = DEFAULTS.settings; }
+    if (_data) { _data.budgets = { default: {} }; _data.wallets = []; _data.settings = DEFAULTS.settings; }
     await saveMeta();
     try {
       const snap = await budgetCol().get();
@@ -306,6 +392,12 @@ const Data = (() => {
       snap.docs.forEach(d => batch.delete(d.ref));
       await batch.commit();
     } catch(e) { console.warn('clearAll budgets:', e); }
+    try {
+      const snap = await walletCol().get();
+      const batch = fbDb.batch();
+      snap.docs.forEach(d => batch.delete(d.ref));
+      await batch.commit();
+    } catch(e) { console.warn('clearAll wallets:', e); }
   }
 
   // Legacy compat
@@ -320,6 +412,7 @@ const Data = (() => {
     getAllBudgets, setDefaultBudget, setDefaultBudgets, setMonthBudgets, resetMonthBudgets,
     addExchangeRates, getExchangeRates, getWeightedAverageRate,
     getCategories, addCategory, deleteCategory,
+    getWallets, getWallet, saveWallet, deleteWallet, getWalletStats,
     getMonthlyTotals, getCategoryTotals, getAnnualCategoryTotals,
     getAvailableYears, getAvailableMonths,
     getSettings, updateSettings

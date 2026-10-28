@@ -25,6 +25,9 @@ const S = {
     manualRate:   null
   },
 
+  // Wallets page: currently selected wallet
+  walletId: null,
+
   // Transactions list
   txFilter: { search: '', category: '', source: '', year: '', page: 0, PAGE_SIZE: 50 },
 
@@ -39,6 +42,7 @@ const S = {
 const PAGE_TITLES = {
   dashboard:    'Dashboard',
   budget:       'Gestione Budget',
+  wallets:      'Wallet',
   import:       'Importa Estratti Conto',
   transactions: 'Transazioni',
   analytics:    'Analytics',
@@ -104,6 +108,7 @@ function navigate(view) {
   switch (view) {
     case 'dashboard':    renderDashboard();    break;
     case 'budget':       renderBudgetView();   break;
+    case 'wallets':      renderWallets();      break;
     case 'import':       renderImport();       break;
     case 'transactions': renderTransactions(); break;
     case 'analytics':    renderAnalytics();    break;
@@ -197,6 +202,10 @@ function renderTxRow(t, cats) {
   const amtClass = t.amountEUR < 0 ? 'negative' : 'positive';
   const srcIcon  = sourceIcon(t.source);
   const hasNote  = !!(t.notes && t.notes.trim());
+  const wallet   = t.walletId ? Data.getWallet(t.walletId) : null;
+  const walletTag = wallet
+    ? `<span class="wallet-tag" style="--wc:${safeColor(wallet.color)}" onclick="openWallet('${wallet.id}')" title="Wallet: ${escHtml(wallet.name)}"><span class="wallet-dot"></span>${escHtml(wallet.name)}</span>`
+    : '';
   const noteSnippet = hasNote
     ? `<div class="note-text" onclick="openNoteModal('${t.id}')" title="${escHtml(t.notes)}"><i data-lucide="file-text" class="lucide-icon icon-sm"></i> ${escHtml(t.notes.substring(0, 45))}</div>`
     : '';
@@ -204,7 +213,7 @@ function renderTxRow(t, cats) {
   return `<tr>
     <td class="mono small">${fmtDate(t.date)}</td>
     <td class="desc-cell" title="${escHtml(t.description)}">
-      <div>${escHtml(t.description.substring(0, 55))}</div>
+      <div>${escHtml(t.description.substring(0, 55))}${walletTag}</div>
       ${noteSnippet}
     </td>
     <td>
@@ -618,6 +627,7 @@ async function updateTxCategory(id, cat) {
   await Data.updateTransaction(id, { category: cat });
   if (S.view === 'dashboard') renderDashboard();
   else if (S.view === 'transactions') renderTransactions();
+  else if (S.view === 'wallets') renderWallets();
 }
 
 async function deleteTx(id) {
@@ -625,13 +635,196 @@ async function deleteTx(id) {
   await Data.deleteTransaction(id);
   if (S.view === 'dashboard') renderDashboard();
   else if (S.view === 'transactions') renderTransactions();
+  else if (S.view === 'wallets') renderWallets();
   showToast('Transazione eliminata', 'info');
 }
 
+// ── WALLETS ───────────────────────────────────────────────────
+const WALLET_COLORS = ['#0a84ff','#30d158','#ff9f0a','#ff453a','#bf5af2','#64d2ff','#ff375f','#ffd60a'];
+
+function safeColor(c) {
+  return /^#[0-9a-fA-F]{6}$/.test(c || '') ? c : '#0a84ff';
+}
+
+function walletOptionsHtml(selectedId) {
+  return `<option value="">Nessun wallet</option>` +
+    Data.getWallets().map(w =>
+      `<option value="${w.id}" ${w.id === selectedId ? 'selected' : ''}>${escHtml(w.name)}</option>`).join('');
+}
+
+function walletPeriodLabel(w) {
+  if (w.startDate && w.endDate) return `${fmtDate(w.startDate)} – ${fmtDate(w.endDate)}`;
+  if (w.startDate) return `dal ${fmtDate(w.startDate)}`;
+  if (w.endDate)   return `fino al ${fmtDate(w.endDate)}`;
+  return '';
+}
+
+function walletPctLabel(st) {
+  return Number.isFinite(st.pctUsed) ? `${st.pctUsed.toFixed(0)}%` : '—';
+}
+
+function walletBarClass(st) {
+  if (st.status === 'negative') return 'danger';
+  return st.pctUsed >= 80 ? 'warning' : 'ok';
+}
+
+function openWallet(id) {
+  S.walletId = id;
+  navigate('wallets');
+}
+
+function renderWallets() {
+  const wallets = Data.getWallets();
+  if (!wallets.some(w => w.id === S.walletId)) S.walletId = wallets[0]?.id || null;
+
+  if (!wallets.length) {
+    set('wallet-list', `<div class="card wallet-empty">
+      <i data-lucide="wallet-cards" class="lucide-icon lucide-lg"></i>
+      <p>Nessun wallet ancora. Crea un wallet per stanziare un importo (es. un viaggio o un progetto) e assegnargli le spese.</p>
+      <button class="btn btn-primary btn-sm" onclick="openWalletModal()"><i data-lucide="plus" class="lucide-icon icon-sm"></i> Crea il primo wallet</button>
+    </div>`);
+    el('wallet-detail').classList.add('hidden');
+    refreshIcons();
+    return;
+  }
+
+  set('wallet-list', wallets.map(w => {
+    const st = Data.getWalletStats(w.id);
+    const pct = Number.isFinite(st.pctUsed) ? Math.min(st.pctUsed, 100) : 100;
+    return `<button type="button" class="wallet-card ${w.id === S.walletId ? 'active' : ''}" style="--wc:${safeColor(w.color)}" onclick="openWallet('${w.id}')">
+      <div class="wallet-card-head"><span class="wallet-dot"></span><span class="wallet-card-name">${escHtml(w.name)}</span></div>
+      <div class="wallet-card-remaining ${st.status}">${fmt(st.remaining)}</div>
+      <div class="muted small">rimanenti di ${fmt(st.available)}</div>
+      <div class="bar-track sm"><div class="bar-fill ${walletBarClass(st)}" style="width:${pct}%"></div></div>
+      <div class="muted small">${st.txs.length} transazioni · ${walletPctLabel(st)} usato</div>
+    </button>`;
+  }).join(''));
+
+  renderWalletDetail(S.walletId);
+  refreshIcons();
+}
+
+function renderWalletDetail(id) {
+  const st = Data.getWalletStats(id);
+  if (!st) { el('wallet-detail').classList.add('hidden'); return; }
+  el('wallet-detail').classList.remove('hidden');
+  const w = st.wallet;
+
+  el('wd-dot').style.setProperty('--wc', safeColor(w.color));
+  setText('wd-name', w.name);
+  setText('wd-meta', [walletPeriodLabel(w), w.notes].filter(Boolean).join(' · '));
+
+  const statusMsg = {
+    positive: `<i data-lucide="check-circle-2" class="lucide-icon icon-sm"></i> Disponibile: restano <strong>${fmt(st.remaining)}</strong>`,
+    zero:     `<i data-lucide="circle-dot" class="lucide-icon icon-sm"></i> Esaurito: il wallet è stato speso interamente`,
+    negative: `<i data-lucide="alert-triangle" class="lucide-icon icon-sm"></i> Sforato: superato di <strong>${fmt(Math.abs(st.remaining))}</strong>`
+  }[st.status];
+  const statusEl = el('wd-status');
+  statusEl.className = `wallet-status mb-15 ${st.status}`;
+  statusEl.innerHTML = statusMsg;
+
+  setText('wd-kpi-allocated', fmt(st.allocated));
+  setText('wd-kpi-credits', st.credits > 0 ? `+ ${fmt(st.credits)} di entrate/rimborsi` : '');
+  setText('wd-kpi-spent', fmt(st.spent));
+  setText('wd-kpi-remaining', fmt(st.remaining));
+  el('wd-kpi-remaining').className = `kpi-value ${st.status === 'negative' ? 'negative' : st.status === 'positive' ? 'positive' : ''}`;
+  el('wd-kpi-remaining-card').className = `kpi-card ${st.status === 'negative' ? 'danger' : st.status === 'positive' ? 'success' : ''}`;
+  setText('wd-kpi-pct', walletPctLabel(st));
+
+  const pct = Number.isFinite(st.pctUsed) ? st.pctUsed : 100;
+  el('wd-bar-fill').style.width = Math.min(pct, 100) + '%';
+  el('wd-bar-fill').className = `bar-fill ${walletBarClass(st)}`;
+  setText('wd-bar-label', `${walletPctLabel(st)} utilizzato — ${fmt(st.spent)} su ${fmt(st.available)}`);
+
+  // Charts: canvases are re-created because the empty state replaces them
+  if (Object.keys(st.byCategory).length) {
+    set('wd-donut-wrap', '<canvas id="chart-wallet-donut"></canvas>');
+    Charts.donut('chart-wallet-donut', st.byCategory);
+  } else {
+    Charts.destroy('chart-wallet-donut');
+    set('wd-donut-wrap', '<div class="empty-chart">Nessuna spesa assegnata</div>');
+  }
+  if (st.txs.length) {
+    set('wd-timeline-wrap', '<canvas id="chart-wallet-timeline"></canvas>');
+    Charts.walletTimeline('chart-wallet-timeline', st.txs, st.allocated);
+  } else {
+    Charts.destroy('chart-wallet-timeline');
+    set('wd-timeline-wrap', '<div class="empty-chart">Nessuna spesa assegnata</div>');
+  }
+
+  setText('wd-tx-count', `(${st.txs.length})`);
+  const cats = Data.getCategories();
+  set('wd-tx-body', st.txs.length
+    ? st.txs.map(t => renderTxRow(t, cats)).join('')
+    : '<tr><td colspan="6" class="empty-row">Nessuna transazione in questo wallet. Assegnala dal pulsante modifica di una transazione.</td></tr>');
+}
+
+function openWalletModal(id) {
+  const w = id ? Data.getWallet(id) : null;
+  set('modal-wallet-title', `<i data-lucide="wallet-cards" class="lucide-icon icon-sm"></i> ${w ? 'Modifica Wallet' : 'Nuovo Wallet'}`);
+  el('wallet-id').value     = w ? w.id : '';
+  el('wallet-name').value   = w ? w.name : '';
+  el('wallet-amount').value = w ? (w.amount ?? 0) : '';
+  el('wallet-color').value  = w ? safeColor(w.color) : WALLET_COLORS[Data.getWallets().length % WALLET_COLORS.length];
+  el('wallet-start').value  = w?.startDate || '';
+  el('wallet-end').value    = w?.endDate || '';
+  el('wallet-notes').value  = w?.notes || '';
+  el('modal-wallet').classList.remove('hidden');
+  refreshIcons();
+  el('wallet-name').focus();
+}
+
+function closeWalletModal() {
+  el('modal-wallet').classList.add('hidden');
+}
+
+async function handleSaveWallet(e) {
+  e.preventDefault();
+  const name   = el('wallet-name').value.trim();
+  const amount = parseFloat(el('wallet-amount').value);
+  const startDate = el('wallet-start').value;
+  const endDate   = el('wallet-end').value;
+  if (!name || isNaN(amount) || amount < 0) {
+    showToast('Inserisci un nome e un importo valido', 'warning');
+    return;
+  }
+  if (startDate && endDate && endDate < startDate) {
+    showToast('La data di fine è precedente a quella di inizio', 'warning');
+    return;
+  }
+  const id = await Data.saveWallet({
+    id:     el('wallet-id').value || undefined,
+    name,
+    amount: Math.round(amount * 100) / 100,
+    color:  safeColor(el('wallet-color').value),
+    startDate,
+    endDate,
+    notes:  el('wallet-notes').value.trim()
+  });
+  closeWalletModal();
+  showToast(`Wallet "${name}" salvato`, 'success');
+  openWallet(id);
+}
+
+async function deleteWallet(id) {
+  const w = Data.getWallet(id);
+  if (!w) return;
+  const n = Data.getTransactions({ walletId: id }).length;
+  const msg = n
+    ? `Eliminare il wallet "${w.name}"? Le ${n} transazioni assegnate resteranno, ma senza wallet.`
+    : `Eliminare il wallet "${w.name}"?`;
+  if (!confirm(msg)) return;
+  await Data.deleteWallet(id);
+  S.walletId = null;
+  showToast('Wallet eliminato', 'info');
+  navigate('wallets');
+}
+
 // ── SINGLE EXPENSE MODAL ──────────────────────────────────────
-function openAddExpenseModal() {
+function openAddExpenseModal(walletId) {
   const cats = Data.getCategories();
   set('exp-category', cats.map(c => `<option value="${c}">${c}</option>`).join(''));
+  set('exp-wallet', walletOptionsHtml(typeof walletId === 'string' ? walletId : ''));
 
   // Default date: today if current month, else 1st of selected month
   const now = new Date();
@@ -670,6 +863,7 @@ async function handleSaveSingleExpense(e) {
   const category = el('exp-category').value;
   const source   = el('exp-source').value;
   const notes    = el('exp-notes').value.trim();
+  const walletId = el('exp-wallet').value;
 
   if (!dateStr || !desc || isNaN(rawAmt) || rawAmt <= 0) {
     showToast('Compila tutti i campi obbligatori', 'warning');
@@ -704,13 +898,16 @@ async function handleSaveSingleExpense(e) {
     importedAt: new Date().toISOString(),
     notes
   };
+  if (walletId) newTx.walletId = walletId;
 
   await Data.addTransactions([newTx]);
   closeAddExpenseModal();
   showToast('Spesa salvata su Firebase!', 'success');
 
-  S.year = year;
-  S.month = parseInt(dateStr.substring(5, 7));
+  if (S.view !== 'wallets') {
+    S.year = year;
+    S.month = parseInt(dateStr.substring(5, 7));
+  }
   navigate(S.view);
 }
 
@@ -760,6 +957,7 @@ function openEditTxModal(id) {
   el('edit-tx-currency').value = t.currency || 'EUR';
   el('edit-tx-source').value = t.source;
   el('edit-tx-notes').value = t.notes || '';
+  set('edit-tx-wallet', walletOptionsHtml(t.walletId || ''));
 
   el('modal-edit-tx').classList.remove('hidden');
   el('edit-tx-desc').focus();
@@ -780,6 +978,7 @@ async function handleEditTx(e) {
   const category = el('edit-tx-category').value;
   const source   = el('edit-tx-source').value;
   const notes    = el('edit-tx-notes').value;
+  const walletId = el('edit-tx-wallet').value;
 
   if (!desc || isNaN(rawAmt) || rawAmt <= 0) return;
 
@@ -805,14 +1004,17 @@ async function handleEditTx(e) {
     category,
     source,
     type,
-    notes
+    notes,
+    walletId: walletId || undefined
   });
 
   closeEditTxModal();
   showToast('Transazione modificata!', 'success');
 
-  S.year = year;
-  S.month = parseInt(dateStr.substring(5, 7));
+  if (S.view !== 'wallets') {
+    S.year = year;
+    S.month = parseInt(dateStr.substring(5, 7));
+  }
   navigate(S.view);
 }
 
@@ -1760,6 +1962,7 @@ document.addEventListener('DOMContentLoaded', () => {
   el('add-expense-form')?.addEventListener('submit', handleSaveSingleExpense);
   el('edit-note-form')?.addEventListener('submit', handleSaveNote);
   el('edit-tx-form')?.addEventListener('submit', handleEditTx);
+  el('wallet-form')?.addEventListener('submit', handleSaveWallet);
 
   // Transactions filters
   el('tx-search')?.addEventListener('input', filterTransactions);
