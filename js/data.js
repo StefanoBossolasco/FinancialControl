@@ -136,7 +136,8 @@ const Data = (() => {
     if (filters.year)     txs = txs.filter(t => t.year === parseInt(filters.year));
     if (filters.category) txs = txs.filter(t => t.category === filters.category);
     if (filters.source)   txs = txs.filter(t => t.source   === filters.source);
-    if (filters.walletId) txs = txs.filter(t => t.walletId === filters.walletId);
+    if (filters.walletId === '__none__') txs = txs.filter(t => !t.walletId);
+    else if (filters.walletId) txs = txs.filter(t => t.walletId === filters.walletId);
     if (filters.search) {
       const s = filters.search.toLowerCase();
       txs = txs.filter(t => t.description.toLowerCase().includes(s) ||
@@ -268,6 +269,22 @@ const Data = (() => {
     }
     batch.delete(walletDoc(id));
     await batch.commit();
+  }
+
+  // Assigns (walletId) or unassigns (null) many transactions in batched writes
+  async function assignWallet(ids, walletId) {
+    if (!_data) return 0;
+    const idSet = new Set(ids);
+    const targets = _data.transactions.filter(t => idSet.has(t.id));
+    let batch = fbDb.batch();
+    let count = 0;
+    for (const tx of targets) {
+      if (walletId) tx.walletId = walletId; else delete tx.walletId;
+      batch.update(txDoc(tx.id), { walletId: walletId || firebase.firestore.FieldValue.delete() });
+      if (++count >= 499) { await batch.commit(); batch = fbDb.batch(); count = 0; }
+    }
+    if (count > 0) await batch.commit();
+    return targets.length;
   }
 
   function getWalletStats(id) {
@@ -412,7 +429,7 @@ const Data = (() => {
     getAllBudgets, setDefaultBudget, setDefaultBudgets, setMonthBudgets, resetMonthBudgets,
     addExchangeRates, getExchangeRates, getWeightedAverageRate,
     getCategories, addCategory, deleteCategory,
-    getWallets, getWallet, saveWallet, deleteWallet, getWalletStats,
+    getWallets, getWallet, saveWallet, deleteWallet, getWalletStats, assignWallet,
     getMonthlyTotals, getCategoryTotals, getAnnualCategoryTotals,
     getAvailableYears, getAvailableMonths,
     getSettings, updateSettings

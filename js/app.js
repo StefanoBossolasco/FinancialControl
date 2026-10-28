@@ -29,7 +29,8 @@ const S = {
   walletId: null,
 
   // Transactions list
-  txFilter: { search: '', category: '', source: '', year: '', page: 0, PAGE_SIZE: 50 },
+  txFilter: { search: '', category: '', source: '', year: '', wallet: '', page: 0, PAGE_SIZE: 50 },
+  txSelected: new Set(),
 
   // Budget management state
   budgetState: {
@@ -198,7 +199,7 @@ function renderDashboard() {
   refreshIcons();
 }
 
-function renderTxRow(t, cats) {
+function renderTxRow(t, cats, selectable = false) {
   const amtClass = t.amountEUR < 0 ? 'negative' : 'positive';
   const srcIcon  = sourceIcon(t.source);
   const hasNote  = !!(t.notes && t.notes.trim());
@@ -210,7 +211,11 @@ function renderTxRow(t, cats) {
     ? `<div class="note-text" onclick="openNoteModal('${t.id}')" title="${escHtml(t.notes)}"><i data-lucide="file-text" class="lucide-icon icon-sm"></i> ${escHtml(t.notes.substring(0, 45))}</div>`
     : '';
 
-  return `<tr>
+  const selectCell = selectable
+    ? `<td><input type="checkbox" class="tx-cb" ${S.txSelected.has(t.id) ? 'checked' : ''} onchange="toggleTxSelect('${t.id}', this.checked)"></td>`
+    : '';
+  return `<tr class="${selectable && S.txSelected.has(t.id) ? 'selected' : ''}">
+    ${selectCell}
     <td class="mono small">${fmtDate(t.date)}</td>
     <td class="desc-cell" title="${escHtml(t.description)}">
       <div>${escHtml(t.description.substring(0, 55))}${walletTag}</div>
@@ -600,7 +605,12 @@ function renderTransactions() {
     category: f.category || undefined,
     source:   f.source   || undefined,
     search:   f.search   || undefined,
+    walletId: f.wallet   || undefined,
   });
+  S.txFiltered = txs.map(t => t.id);
+  // Keep the selection limited to what the current filters show
+  const visible = new Set(S.txFiltered);
+  [...S.txSelected].forEach(id => { if (!visible.has(id)) S.txSelected.delete(id); });
 
   const total = txs.length;
   const pages = Math.ceil(total / f.PAGE_SIZE);
@@ -615,10 +625,15 @@ function renderTransactions() {
     .map(c => `<option value="${c}" ${f.category===c?'selected':''}>${c||'Tutte le categorie'}</option>`).join('');
 
   el('tx-filter-category').innerHTML = catOpts;
+  el('tx-filter-wallet').innerHTML =
+    `<option value="">Tutti i wallet</option><option value="__none__" ${f.wallet === '__none__' ? 'selected' : ''}>Senza wallet</option>` +
+    Data.getWallets().map(w => `<option value="${w.id}" ${f.wallet === w.id ? 'selected' : ''}>${escHtml(w.name)}</option>`).join('');
 
-  const rows = slice.map(t => renderTxRow(t, cats)).join('') || '<tr><td colspan="6" class="empty-row">Nessuna transazione trovata</td></tr>';
+  S.txPageIds = slice.map(t => t.id);
+  const rows = slice.map(t => renderTxRow(t, cats, true)).join('') || '<tr><td colspan="7" class="empty-row">Nessuna transazione trovata</td></tr>';
 
   set('tx-table-body', rows);
+  updateTxBulkBar();
   set('tx-pagination', paginationHtml(f.page, pages, 'txPage'));
   setText('tx-count', `${total} transazioni`);
 }
@@ -694,7 +709,7 @@ function renderWallets() {
     return `<button type="button" class="wallet-card ${w.id === S.walletId ? 'active' : ''}" style="--wc:${safeColor(w.color)}" onclick="openWallet('${w.id}')">
       <div class="wallet-card-head"><span class="wallet-dot"></span><span class="wallet-card-name">${escHtml(w.name)}</span></div>
       <div class="wallet-card-remaining ${st.status}">${fmt(st.remaining)}</div>
-      <div class="muted small">rimanenti di ${fmt(st.available)}</div>
+      <div class="muted small">saldo · base ${fmt(st.allocated)}${st.credits > 0 ? ` + ${fmt(st.credits)} entrate` : ''}</div>
       <div class="bar-track sm"><div class="bar-fill ${walletBarClass(st)}" style="width:${pct}%"></div></div>
       <div class="muted small">${st.txs.length} transazioni · ${walletPctLabel(st)} usato</div>
     </button>`;
@@ -724,17 +739,17 @@ function renderWalletDetail(id) {
   statusEl.innerHTML = statusMsg;
 
   setText('wd-kpi-allocated', fmt(st.allocated));
-  setText('wd-kpi-credits', st.credits > 0 ? `+ ${fmt(st.credits)} di entrate/rimborsi` : '');
-  setText('wd-kpi-spent', fmt(st.spent));
+  setText('wd-kpi-credits', `+${fmt(st.credits)}`);
+  setText('wd-kpi-spent', `−${fmt(st.spent)}`);
   setText('wd-kpi-remaining', fmt(st.remaining));
+  setText('wd-kpi-formula', `${fmt(st.allocated)} + ${fmt(st.credits)} − ${fmt(st.spent)}`);
   el('wd-kpi-remaining').className = `kpi-value ${st.status === 'negative' ? 'negative' : st.status === 'positive' ? 'positive' : ''}`;
   el('wd-kpi-remaining-card').className = `kpi-card ${st.status === 'negative' ? 'danger' : st.status === 'positive' ? 'success' : ''}`;
-  setText('wd-kpi-pct', walletPctLabel(st));
 
   const pct = Number.isFinite(st.pctUsed) ? st.pctUsed : 100;
   el('wd-bar-fill').style.width = Math.min(pct, 100) + '%';
   el('wd-bar-fill').className = `bar-fill ${walletBarClass(st)}`;
-  setText('wd-bar-label', `${walletPctLabel(st)} utilizzato — ${fmt(st.spent)} su ${fmt(st.available)}`);
+  setText('wd-bar-label', `${walletPctLabel(st)} utilizzato — uscite ${fmt(st.spent)} su ${fmt(st.available)} disponibili (base + entrate)`);
 
   // Charts: canvases are re-created because the empty state replaces them
   if (Object.keys(st.byCategory).length) {
@@ -1025,8 +1040,86 @@ function filterTransactions() {
   S.txFilter.category = el('tx-filter-category').value;
   S.txFilter.source   = el('tx-filter-source').value;
   S.txFilter.year     = el('tx-filter-year').value;
+  S.txFilter.wallet   = el('tx-filter-wallet').value;
   S.txFilter.page     = 0;
+  S.txSelected.clear();
   renderTransactions();
+}
+
+// ── Bulk selection / wallet assignment (Transactions view) ────
+function toggleTxSelect(id, on) {
+  if (on) S.txSelected.add(id); else S.txSelected.delete(id);
+  document.querySelectorAll('#tx-table-body .tx-cb').forEach(cb => {
+    cb.closest('tr').classList.toggle('selected', cb.checked);
+  });
+  updateTxBulkBar();
+}
+
+function toggleTxSelectPage(on) {
+  (S.txPageIds || []).forEach(id => on ? S.txSelected.add(id) : S.txSelected.delete(id));
+  renderTransactions();
+}
+
+function selectAllFilteredTxs() {
+  (S.txFiltered || []).forEach(id => S.txSelected.add(id));
+  renderTransactions();
+}
+
+function clearTxSelection() {
+  S.txSelected.clear();
+  renderTransactions();
+}
+
+function updateTxBulkBar() {
+  const n = S.txSelected.size;
+  const pageIds = S.txPageIds || [];
+  const pageAll = pageIds.length > 0 && pageIds.every(id => S.txSelected.has(id));
+  const head = el('tx-select-page');
+  head.checked = pageAll;
+  head.indeterminate = !pageAll && pageIds.some(id => S.txSelected.has(id));
+
+  el('tx-bulk-bar').classList.toggle('hidden', n === 0);
+  el('view-transactions').classList.toggle('has-selection', n > 0);
+  if (!n) return;
+  const total = S.txSelected.size;
+  const sum = Data.getTransactions({}).filter(t => S.txSelected.has(t.id))
+    .reduce((s, t) => s + t.amountEUR, 0);
+  setText('tx-bulk-count', `${total} selezionat${total === 1 ? 'a' : 'e'} · ${fmt(sum)}`);
+
+  const filtered = S.txFiltered || [];
+  const moreBtn = el('tx-select-all-filtered');
+  const allFiltered = filtered.every(id => S.txSelected.has(id));
+  moreBtn.classList.toggle('hidden', allFiltered || !pageAll);
+  moreBtn.textContent = `Seleziona tutte le ${filtered.length} transazioni filtrate`;
+
+  const sel = el('tx-bulk-wallet');
+  const prev = sel.value || S.bulkWalletId || '';
+  sel.innerHTML = `<option value="" disabled ${prev ? '' : 'selected'}>Scegli wallet…</option>` +
+    Data.getWallets().map(w => `<option value="${w.id}" ${w.id === prev ? 'selected' : ''}>${escHtml(w.name)}</option>`).join('');
+}
+
+async function bulkAssignWallet(walletId) {
+  const ids = [...S.txSelected];
+  if (!ids.length) return;
+  if (walletId === undefined) {
+    walletId = el('tx-bulk-wallet').value;
+    if (!walletId) { showToast('Scegli un wallet', 'warning'); return; }
+  }
+  const n = await Data.assignWallet(ids, walletId);
+  S.txSelected.clear();
+  const w = walletId ? Data.getWallet(walletId) : null;
+  showToast(w ? `${n} transazioni assegnate a "${w.name}"` : `${n} transazioni rimosse dal wallet`, 'success');
+  renderTransactions();
+}
+
+// From a wallet page: open Transactions showing unassigned expenses, wallet preselected
+function pickTxsForWallet(walletId) {
+  S.bulkWalletId = walletId;
+  S.txFilter = { ...S.txFilter, wallet: '__none__', year: String(S.year), page: 0 };
+  S.txSelected.clear();
+  el('tx-filter-year').value = S.txFilter.year;
+  navigate('transactions');
+  showToast('Seleziona le spese e premi "Assegna al wallet"', 'info');
 }
 
 // ── ANALYTICS ─────────────────────────────────────────────────
@@ -1969,6 +2062,9 @@ document.addEventListener('DOMContentLoaded', () => {
   el('tx-filter-category')?.addEventListener('change', filterTransactions);
   el('tx-filter-source')?.addEventListener('change', filterTransactions);
   el('tx-filter-year')?.addEventListener('change', filterTransactions);
+  el('tx-filter-wallet')?.addEventListener('change', filterTransactions);
+  el('tx-select-page')?.addEventListener('change', e => toggleTxSelectPage(e.target.checked));
+  el('tx-select-all-filtered')?.addEventListener('click', selectAllFilteredTxs);
 
   // Settings
   el('save-budget-btn')?.addEventListener('click', saveBudgets);

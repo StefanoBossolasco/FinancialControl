@@ -20,7 +20,7 @@
   <!-- Lucide Icons -->
   <script src="https://cdn.jsdelivr.net/npm/lucide@0.395.0/dist/umd/lucide.min.js"></script>
 
-  <link rel="stylesheet" href="css/styles.css?v=1.1.0">
+  <link rel="stylesheet" href="css/styles.css?v=1.2.0">
 </head>
 <body>
 
@@ -381,8 +381,11 @@
               </div>
             </div>
             <div style="display:flex;gap:0.5rem;flex-wrap:wrap">
+              <button class="btn btn-secondary btn-sm" onclick="pickTxsForWallet(S.walletId)">
+                <i data-lucide="list-checks" class="lucide-icon icon-sm"></i> Aggiungi spese esistenti
+              </button>
               <button class="btn btn-primary btn-sm" onclick="openAddExpenseModal(S.walletId)">
-                <i data-lucide="plus" class="lucide-icon icon-sm"></i> Spesa nel wallet
+                <i data-lucide="plus" class="lucide-icon icon-sm"></i> Movimento nel wallet
               </button>
               <button class="btn btn-secondary btn-sm" onclick="openWalletModal(S.walletId)">
                 <i data-lucide="pencil" class="lucide-icon icon-sm"></i> Modifica
@@ -397,21 +400,21 @@
 
           <div class="kpi-grid mb-15">
             <div class="kpi-card">
-              <span class="kpi-label">Totale Stanziato</span>
+              <span class="kpi-label">Base Iniziale</span>
               <span class="kpi-value" id="wd-kpi-allocated">€ 0</span>
-              <span class="muted small" id="wd-kpi-credits"></span>
+            </div>
+            <div class="kpi-card success">
+              <span class="kpi-label">Entrate (+)</span>
+              <span class="kpi-value positive" id="wd-kpi-credits">€ 0</span>
             </div>
             <div class="kpi-card danger">
-              <span class="kpi-label">Totale Speso</span>
+              <span class="kpi-label">Uscite (−)</span>
               <span class="kpi-value negative" id="wd-kpi-spent">€ 0</span>
             </div>
             <div class="kpi-card" id="wd-kpi-remaining-card">
               <span class="kpi-label">Saldo Rimanente</span>
               <span class="kpi-value" id="wd-kpi-remaining">€ 0</span>
-            </div>
-            <div class="kpi-card warning">
-              <span class="kpi-label">Utilizzo</span>
-              <span class="kpi-value" id="wd-kpi-pct">0%</span>
+              <span class="muted small" id="wd-kpi-formula"></span>
             </div>
           </div>
 
@@ -427,7 +430,7 @@
               <div id="wd-donut-wrap" class="chart-wrap"><canvas id="chart-wallet-donut"></canvas></div>
             </div>
             <div class="chart-card">
-              <h3>Spesa nel Tempo</h3>
+              <h3>Andamento del Saldo</h3>
               <div id="wd-timeline-wrap" class="chart-wrap"><canvas id="chart-wallet-timeline"></canvas></div>
             </div>
           </div>
@@ -615,6 +618,23 @@
               <option value="2026">2026 (intero anno)</option>
               <option value="2027">2027 (intero anno)</option>
             </select>
+            <select id="tx-filter-wallet" class="select-styled">
+              <option value="">Tutti i wallet</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Bulk wallet assignment (visible when rows are selected) -->
+        <div class="card mb-1 bulk-bar hidden" id="tx-bulk-bar">
+          <span class="bulk-count" id="tx-bulk-count"></span>
+          <button type="button" class="btn-link small hidden" id="tx-select-all-filtered"></button>
+          <div class="bulk-actions">
+            <select id="tx-bulk-wallet" class="select-styled" style="min-width:180px"></select>
+            <button class="btn btn-primary btn-sm" onclick="bulkAssignWallet()">
+              <i data-lucide="wallet-cards" class="lucide-icon icon-sm"></i> Assegna al wallet
+            </button>
+            <button class="btn btn-secondary btn-sm" onclick="bulkAssignWallet(null)">Rimuovi dal wallet</button>
+            <button class="btn btn-secondary btn-sm" onclick="clearTxSelection()">Deseleziona</button>
           </div>
         </div>
 
@@ -624,8 +644,9 @@
             <table>
               <thead>
                 <tr>
-                  <th>Data</th><th>Descrizione</th><th>Categoria</th>
-                  <th>Orig.</th><th>EUR</th><th>Fonte</th><th style="width:40px"></th>
+                  <th style="width:36px"><input type="checkbox" id="tx-select-page" title="Seleziona tutte in questa pagina"></th>
+                  <th>Data</th><th>Descrizione & Note</th><th>Categoria</th>
+                  <th>Importo EUR</th><th>Fonte</th><th style="width:70px">Azioni</th>
                 </tr>
               </thead>
               <tbody id="tx-table-body">
@@ -1095,7 +1116,7 @@
         </div>
         <div class="grid-2 gap-1 mb-1">
           <div class="form-group mb-0">
-            <label for="wallet-amount">Importo stanziato (€)</label>
+            <label for="wallet-amount">Base iniziale (€)</label>
             <input type="number" id="wallet-amount" placeholder="0.00" step="0.01" min="0" required>
           </div>
           <div class="form-group mb-0">
@@ -1113,6 +1134,7 @@
             <input type="date" id="wallet-end">
           </div>
         </div>
+        <p class="muted small mb-1">La base è il punto di partenza: le entrate assegnate al wallet la aumentano, le uscite la riducono.</p>
         <div class="form-group mb-0">
           <label for="wallet-notes">Note (opzionale)</label>
           <input type="text" id="wallet-notes" placeholder="es. Budget complessivo del viaggio">
@@ -1134,10 +1156,10 @@
 <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-firestore-compat.js"></script>
 <script src="js/firebase.js?v=2.0"></script>
 <script src="js/auth.js?v=2.0"></script>
-<script src="js/data.js?v=2.1"></script>
+<script src="js/data.js?v=2.3"></script>
 <script src="js/import.js?v=2.0"></script>
-<script src="js/charts.js?v=2.1"></script>
-<script src="js/app.js?v=2.1"></script>
+<script src="js/charts.js?v=2.3"></script>
+<script src="js/app.js?v=2.3"></script>
 
 </body>
 </html>
