@@ -20,7 +20,7 @@
   <!-- Lucide Icons -->
   <script src="https://cdn.jsdelivr.net/npm/lucide@0.395.0/dist/umd/lucide.min.js"></script>
 
-  <link rel="stylesheet" href="css/styles.css?v=1.0.2">
+  <link rel="stylesheet" href="css/styles.css?v=1.1.0">
 </head>
 <body>
 
@@ -116,6 +116,9 @@
       </a>
       <a href="#" class="nav-link" data-view="budget" id="nav-budget">
         <span class="nav-icon"><i data-lucide="piggy-bank" class="lucide-icon"></i></span><span>Budget</span>
+      </a>
+      <a href="#" class="nav-link" data-view="wallets" id="nav-wallets">
+        <span class="nav-icon"><i data-lucide="wallet-cards" class="lucide-icon"></i></span><span>Wallet</span>
       </a>
       <a href="#" class="nav-link" data-view="import" id="nav-import">
         <span class="nav-icon"><i data-lucide="file-down" class="lucide-icon"></i></span><span>Importa</span>
@@ -346,6 +349,106 @@
                 <tr><td colspan="5" class="empty-row">Caricamento budget…</td></tr>
               </tbody>
             </table>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ═══════════════════════════════════════════════════ -->
+      <!-- VIEW: WALLETS                                       -->
+      <!-- ═══════════════════════════════════════════════════ -->
+      <section id="view-wallets" class="view hidden">
+
+        <div class="section-header mb-15" style="flex-wrap:wrap;gap:1rem">
+          <div>
+            <h2 class="section-title">Wallet</h2>
+            <p class="muted small" style="margin-top:0.2rem">Fondi dedicati con un importo stanziato: assegna le spese e monitora quanto resta</p>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="openWalletModal()">
+            <i data-lucide="plus" class="lucide-icon icon-sm"></i> Nuovo Wallet
+          </button>
+        </div>
+
+        <div class="wallet-grid mb-15" id="wallet-list"></div>
+
+        <div id="wallet-detail" class="hidden">
+          <div class="card mb-15 wallet-detail-head">
+            <div class="wallet-detail-title">
+              <span class="wallet-dot lg" id="wd-dot"></span>
+              <div style="min-width:0">
+                <h2 class="section-title" id="wd-name">—</h2>
+                <p class="muted small" id="wd-meta"></p>
+              </div>
+            </div>
+            <div style="display:flex;gap:0.5rem;flex-wrap:wrap">
+              <button class="btn btn-primary btn-sm" onclick="openAddExpenseModal(S.walletId)">
+                <i data-lucide="plus" class="lucide-icon icon-sm"></i> Spesa nel wallet
+              </button>
+              <button class="btn btn-secondary btn-sm" onclick="openWalletModal(S.walletId)">
+                <i data-lucide="pencil" class="lucide-icon icon-sm"></i> Modifica
+              </button>
+              <button class="btn btn-danger btn-sm" onclick="deleteWallet(S.walletId)">
+                <i data-lucide="trash-2" class="lucide-icon icon-sm"></i> Elimina
+              </button>
+            </div>
+          </div>
+
+          <div class="wallet-status mb-15" id="wd-status"></div>
+
+          <div class="kpi-grid mb-15">
+            <div class="kpi-card">
+              <span class="kpi-label">Totale Stanziato</span>
+              <span class="kpi-value" id="wd-kpi-allocated">€ 0</span>
+              <span class="muted small" id="wd-kpi-credits"></span>
+            </div>
+            <div class="kpi-card danger">
+              <span class="kpi-label">Totale Speso</span>
+              <span class="kpi-value negative" id="wd-kpi-spent">€ 0</span>
+            </div>
+            <div class="kpi-card" id="wd-kpi-remaining-card">
+              <span class="kpi-label">Saldo Rimanente</span>
+              <span class="kpi-value" id="wd-kpi-remaining">€ 0</span>
+            </div>
+            <div class="kpi-card warning">
+              <span class="kpi-label">Utilizzo</span>
+              <span class="kpi-value" id="wd-kpi-pct">0%</span>
+            </div>
+          </div>
+
+          <div class="card budget-progress mb-15">
+            <div class="card-title">Utilizzo del Wallet</div>
+            <div class="bar-track"><div class="bar-fill ok" id="wd-bar-fill" style="width:0%"></div></div>
+            <div class="bar-label" id="wd-bar-label">0% utilizzato</div>
+          </div>
+
+          <div class="charts-row mb-15">
+            <div class="chart-card">
+              <h3>Spese per Categoria</h3>
+              <div id="wd-donut-wrap" class="chart-wrap"><canvas id="chart-wallet-donut"></canvas></div>
+            </div>
+            <div class="chart-card">
+              <h3>Spesa nel Tempo</h3>
+              <div id="wd-timeline-wrap" class="chart-wrap"><canvas id="chart-wallet-timeline"></canvas></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="section-header mb-1">
+              <div>
+                <span class="section-title">Transazioni del Wallet</span>
+                <span class="muted small" id="wd-tx-count" style="margin-left:0.5rem"></span>
+              </div>
+            </div>
+            <div style="overflow-x:auto;max-height:550px">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Data</th><th>Descrizione & Note</th><th>Categoria</th><th>Importo EUR</th><th>Fonte</th><th style="width:70px">Azioni</th>
+                  </tr>
+                </thead>
+                <tbody id="wd-tx-body"></tbody>
+              </table>
+            </div>
           </div>
         </div>
 
@@ -847,6 +950,11 @@
           </div>
         </div>
 
+        <div class="form-group mb-1">
+          <label for="exp-wallet">Wallet (opzionale)</label>
+          <select id="exp-wallet" class="select-styled" style="width:100%"></select>
+        </div>
+
         <div class="form-group mb-0">
           <label for="exp-notes">Note (opzionale)</label>
           <input type="text" id="exp-notes" placeholder="es. Dettagli o promemoria…">
@@ -948,6 +1056,10 @@
             </select>
           </div>
         </div>
+        <div class="form-group mb-1">
+          <label for="edit-tx-wallet">Wallet (opzionale)</label>
+          <select id="edit-tx-wallet" class="select-styled" style="width:100%"></select>
+        </div>
         <div class="form-group mb-0">
           <label for="edit-tx-notes">Note (opzionale)</label>
           <input type="text" id="edit-tx-notes" placeholder="es. Dettagli o promemoria…">
@@ -963,16 +1075,69 @@
   </div>
 </div>
 
+<!-- ══════════════════════════════════════════════════════════ -->
+<!--  MODAL: WALLET                                            -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div id="modal-wallet" class="modal-overlay hidden">
+  <div class="modal-content" style="max-width:480px">
+    <div class="modal-header">
+      <h3 id="modal-wallet-title"><i data-lucide="wallet-cards" class="lucide-icon icon-sm"></i> Nuovo Wallet</h3>
+      <button class="btn-icon" onclick="closeWalletModal()">
+        <i data-lucide="x" class="lucide-icon"></i>
+      </button>
+    </div>
+    <form id="wallet-form">
+      <div class="modal-body">
+        <input type="hidden" id="wallet-id">
+        <div class="form-group mb-1">
+          <label for="wallet-name">Nome</label>
+          <input type="text" id="wallet-name" placeholder="es. Vacanze Giappone" maxlength="60" required>
+        </div>
+        <div class="grid-2 gap-1 mb-1">
+          <div class="form-group mb-0">
+            <label for="wallet-amount">Importo stanziato (€)</label>
+            <input type="number" id="wallet-amount" placeholder="0.00" step="0.01" min="0" required>
+          </div>
+          <div class="form-group mb-0">
+            <label for="wallet-color">Colore</label>
+            <input type="color" id="wallet-color" value="#0a84ff" class="wallet-color-input">
+          </div>
+        </div>
+        <div class="grid-2 gap-1 mb-1">
+          <div class="form-group mb-0">
+            <label for="wallet-start">Dal (opzionale)</label>
+            <input type="date" id="wallet-start">
+          </div>
+          <div class="form-group mb-0">
+            <label for="wallet-end">Al (opzionale)</label>
+            <input type="date" id="wallet-end">
+          </div>
+        </div>
+        <div class="form-group mb-0">
+          <label for="wallet-notes">Note (opzionale)</label>
+          <input type="text" id="wallet-notes" placeholder="es. Budget complessivo del viaggio">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeWalletModal()">Annulla</button>
+        <button type="submit" class="btn btn-primary">
+          <i data-lucide="save" class="lucide-icon icon-sm"></i> Salva Wallet
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <!-- Scripts -->
 <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-firestore-compat.js"></script>
 <script src="js/firebase.js?v=2.0"></script>
 <script src="js/auth.js?v=2.0"></script>
-<script src="js/data.js?v=2.0"></script>
+<script src="js/data.js?v=2.1"></script>
 <script src="js/import.js?v=2.0"></script>
-<script src="js/charts.js?v=2.0"></script>
-<script src="js/app.js?v=2.0"></script>
+<script src="js/charts.js?v=2.1"></script>
+<script src="js/app.js?v=2.1"></script>
 
 </body>
 </html>

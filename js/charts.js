@@ -421,5 +421,63 @@ const Charts = (() => {
     });
   }
 
-  return { donut, budgetBar, monthlyTrend, annualStacked, balanceLine, yearComparison, forecast, destroy };
+  // ── Wallet timeline — spending per period + cumulative vs allocated ──
+  function walletTimeline(id, txs, allocated) {
+    const sorted = [...txs].sort((a, b) => a.date.localeCompare(b.date));
+    const first = sorted[0].date, last = sorted[sorted.length - 1].date;
+    const spanDays = (new Date(last) - new Date(first)) / 86400000;
+    const byDay = spanDays <= 62;
+    const keyOf = t => byDay ? t.date : t.date.substring(0, 7);
+
+    // Continuous axis so gaps show as empty periods
+    const keys = [];
+    const cur = new Date(first + 'T00:00:00');
+    const end = new Date(last + 'T00:00:00');
+    if (!byDay) cur.setDate(1);
+    while (cur <= end) {
+      const ym = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}`;
+      keys.push(byDay ? `${ym}-${String(cur.getDate()).padStart(2, '0')}` : ym);
+      if (byDay) cur.setDate(cur.getDate() + 1); else cur.setMonth(cur.getMonth() + 1);
+    }
+
+    const net = {};
+    sorted.forEach(t => { net[keyOf(t)] = (net[keyOf(t)] || 0) - t.amountEUR; });
+    const periodSpend = keys.map(k => Math.round((net[k] || 0) * 100) / 100);
+    let run = 0;
+    const cumulative = periodSpend.map(v => Math.round((run += v) * 100) / 100);
+
+    const labels = keys.map(k => byDay
+      ? new Date(k + 'T00:00:00').toLocaleDateString('it-IT', { day: '2-digit', month: 'short' })
+      : new Date(k + '-01T00:00:00').toLocaleDateString('it-IT', { month: 'short', year: '2-digit' }));
+
+    return create(id, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          { type: 'line', label: 'Speso cumulato', data: cumulative, borderColor: '#ff9f0a',
+            backgroundColor: '#ff9f0a', borderWidth: 2.5, tension: 0.25, pointRadius: keys.length > 40 ? 0 : 3, order: 1 },
+          { type: 'line', label: 'Stanziato', data: keys.map(() => allocated), borderColor: '#0a84ff',
+            borderDash: [6, 4], borderWidth: 1.5, pointRadius: 0, order: 2 },
+          { label: byDay ? 'Speso nel giorno' : 'Speso nel mese', data: periodSpend,
+            backgroundColor: 'rgba(255,69,58,0.55)', borderColor: '#ff453a', borderWidth: 1, borderRadius: 4, order: 3 }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { position: 'top', labels: { usePointStyle: true, pointStyle: 'circle' } },
+          tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${fmt(ctx.raw)}` } }
+        },
+        scales: {
+          x: { grid: { display: false } },
+          y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { callback: v => fmt(v, true) } }
+        }
+      }
+    });
+  }
+
+  return { walletTimeline, donut, budgetBar, monthlyTrend, annualStacked, balanceLine, yearComparison, forecast, destroy };
 })();
