@@ -3,87 +3,71 @@ import SwiftUI
 struct BudgetView: View {
     @EnvironmentObject var viewModel: FinancialViewModel
 
+    private var ym: String { String(format: "%04d-%02d", viewModel.selectedYear, viewModel.selectedMonth) }
+
     var body: some View {
-        NavigationView {
-            ScrollView {
-                VStack(spacing: 16) {
-                    // Header Total Summary Card
-                    let budgets = viewModel.data.budgets["default"] ?? [:]
-                    let totalAllocated = budgets.values.reduce(0, +)
-                    let totalSpent = viewModel.monthlyExpenses(year: viewModel.selectedYear, month: viewModel.selectedMonth)
-                    let remaining = totalAllocated - totalSpent
+        let budgets = viewModel.allBudgets(yearMonth: ym)
+        let spentByCat = viewModel.categoryTotals(yearMonth: ym)
+        let totalAllocated = budgets.values.reduce(0, +)
+        let totalSpent = viewModel.monthlyExpenses(year: viewModel.selectedYear, month: viewModel.selectedMonth)
+        let remaining = totalAllocated - totalSpent
 
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("BUDGET PREVISTO BASELINE")
-                            .font(.caption)
-                            .fontWeight(.bold)
-                            .foregroundColor(.secondary)
-
-                        Text("€ \(totalAllocated, specifier: "%.0f")")
-                            .font(.system(size: 32, weight: .bold, design: .rounded))
-
-                        HStack {
-                            VStack(alignment: .leading) {
-                                Text("Spesa Mese").font(.caption).foregroundColor(.secondary)
-                                Text("€ \(totalSpent, specifier: "%.0f")").font(.headline).foregroundColor(.red)
-                            }
-                            Spacer()
-                            VStack(alignment: .trailing) {
-                                Text("Rimanente").font(.caption).foregroundColor(.secondary)
-                                Text("€ \(remaining, specifier: "%.0f")").font(.headline).foregroundColor(remaining >= 0 ? .green : .red)
-                            }
+        ScrollView {
+            VStack(spacing: 16) {
+                // Summary
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Budget di \(Fmt.monthName(viewModel.selectedMonth).lowercased()) \(String(viewModel.selectedYear))")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundColor(.white.opacity(0.85))
+                    Text(Fmt.eurCompact(totalAllocated))
+                        .font(.system(size: 40, weight: .heavy, design: .rounded))
+                        .foregroundColor(.white)
+                    ProgressBar(value: totalAllocated > 0 ? totalSpent / totalAllocated : 0, color: .white, track: .white.opacity(0.25))
+                    HStack {
+                        VStack(alignment: .leading) {
+                            Text("Spesa mese").font(.caption).foregroundColor(.white.opacity(0.85))
+                            Text(Fmt.eurCompact(totalSpent)).font(.system(.headline, design: .rounded)).foregroundColor(.white)
                         }
-                    }
-                    .padding()
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color(.secondarySystemBackground))
-                    .cornerRadius(20)
-
-                    // Categories List
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("Dettaglio per Categoria")
-                            .font(.headline)
-
-                        ForEach(viewModel.data.categories, id: \.self) { category in
-                            let target = budgets[category] ?? 0
-                            let txs = viewModel.monthlyTxs(year: viewModel.selectedYear, month: viewModel.selectedMonth)
-                            let spent = txs.filter { $0.category == category && $0.amountEUR < 0 }.reduce(0) { $0 + abs($1.amountEUR) }
-                            let pct = target > 0 ? min(spent / target, 1.0) : 0
-
-                            VStack(alignment: .leading, spacing: 8) {
-                                HStack {
-                                    Text(category)
-                                        .font(.body)
-                                        .fontWeight(.semibold)
-                                    Spacer()
-                                    Text("€ \(spent, specifier: "%.0f") / € \(target, specifier: "%.0f")")
-                                        .font(.subheadline)
-                                        .foregroundColor(spent > target && target > 0 ? .red : .secondary)
-                                }
-
-                                GeometryReader { geo in
-                                    ZStack(alignment: .leading) {
-                                        Capsule().fill(Color(.tertiarySystemBackground))
-                                            .frame(height: 8)
-                                        Capsule()
-                                            .fill(spent > target && target > 0 ? Color.red : Color.blue)
-                                            .frame(width: geo.size.width * CGFloat(pct), height: 8)
-                                    }
-                                }
-                                .frame(height: 8)
-                            }
-                            .padding(14)
-                            .background(Color(.secondarySystemBackground))
-                            .cornerRadius(16)
+                        Spacer()
+                        VStack(alignment: .trailing) {
+                            Text("Rimanente").font(.caption).foregroundColor(.white.opacity(0.85))
+                            Text(Fmt.eurCompact(remaining)).font(.system(.headline, design: .rounded)).foregroundColor(.white)
                         }
                     }
                 }
-                .padding()
+                .padding(20)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Theme.hero, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+
+                // Categories
+                VStack(alignment: .leading, spacing: 14) {
+                    SectionTitle(title: "Dettaglio per categoria")
+                    ForEach(viewModel.data.categories, id: \.self) { category in
+                        let target = budgets[category] ?? 0
+                        let spent = spentByCat[category] ?? 0
+                        let isOver = spent > target && target > 0
+                        HStack(spacing: 10) {
+                            CategoryAvatar(category: category, size: 36)
+                            VStack(alignment: .leading, spacing: 6) {
+                                HStack {
+                                    Text(category).font(.subheadline.weight(.semibold)).lineLimit(1)
+                                    Spacer()
+                                    Text("\(Fmt.eurCompact(spent)) / \(Fmt.eurCompact(target))")
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundColor(isOver ? Theme.danger : Theme.text2)
+                                }
+                                ProgressBar(value: target > 0 ? spent / target : 0,
+                                            color: isOver ? Theme.danger : Theme.success, height: 6)
+                            }
+                        }
+                    }
+                }
+                .card()
             }
-            .navigationTitle("Gestione Budget")
-            .refreshable {
-                await viewModel.syncData()
-            }
+            .padding(16)
         }
+        .screenBackground()
+        .navigationTitle("Budget")
+        .refreshable { await viewModel.syncData() }
     }
 }

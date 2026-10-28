@@ -78,6 +78,14 @@ class FirebaseService: ObservableObject {
         try db.collection("users/\(uid())/budgets")
     }
 
+    private func walletCollection() throws -> CollectionReference {
+        try db.collection("users/\(uid())/wallets")
+    }
+
+    private func walletDoc(_ id: String) throws -> DocumentReference {
+        try db.document("users/\(uid())/wallets/\(id)")
+    }
+
     // MARK: - Load
 
     func loadMeta() async throws -> [String: Any] {
@@ -106,16 +114,90 @@ class FirebaseService: ObservableObject {
 
     // MARK: - Save
 
-    func saveMeta(settings: [String: Any], categories: [String], exchangeRates: [[String: Any]]) async throws {
+    /// Merges into meta/main so fields this app doesn't manage (exchangeRates) are kept
+    func saveMeta(settings: [String: Any], categories: [String]) async throws {
         try await metaRef().setData([
             "settings": settings,
-            "categories": categories,
-            "exchangeRates": exchangeRates
-        ])
+            "categories": categories
+        ], merge: true)
     }
 
     func saveTransaction(_ tx: [String: Any], id: String) async throws {
         try await txDoc(id).setData(tx)
+    }
+
+    /// Updates only the given fields; a nil value removes the field (e.g. walletId)
+    func updateTransaction(id: String, fields: [String: Any?]) async throws {
+        var data: [String: Any] = [:]
+        for (k, v) in fields { data[k] = v ?? FieldValue.delete() }
+        try await txDoc(id).updateData(data)
+    }
+
+    /// Appends exchange records to meta/main without touching the other fields
+    func addExchangeRates(_ rates: [[String: Any]]) async throws {
+        try await metaRef().setData(["exchangeRates": FieldValue.arrayUnion(rates)], merge: true)
+    }
+
+    // MARK: - Wallets
+
+    func loadWallets() async throws -> [[String: Any]] {
+        let snap = try await walletCollection().getDocuments()
+        return snap.documents.map { doc in
+            var d = doc.data()
+            d["id"] = doc.documentID
+            return d
+        }
+    }
+
+    func saveWallet(_ data: [String: Any], id: String) async throws {
+        try await walletDoc(id).setData(data)
+    }
+
+    /// Deletes the wallet and removes walletId from its transactions in the same batches
+    func deleteWallet(id: String, assignedTxIds: [String]) async throws {
+        let col = try txCollection()
+        var batch = db.batch()
+        var count = 0
+        for txId in assignedTxIds {
+            batch.updateData(["walletId": FieldValue.delete()], forDocument: col.document(txId))
+            count += 1
+            if count >= 499 {
+                try await batch.commit()
+                batch = db.batch()
+                count = 0
+            }
+        }
+        batch.deleteDocument(try walletDoc(id))
+        try await batch.commit()
+    }
+
+    /// Assigns (walletId) or unassigns (nil) many transactions in batched writes
+    func assignWallet(txIds: [String], walletId: String?) async throws {
+        let col = try txCollection()
+        var batch = db.batch()
+        var count = 0
+        for txId in txIds {
+            batch.updateData(["walletId": walletId ?? FieldValue.delete()], forDocument: col.document(txId))
+            count += 1
+            if count >= 499 {
+                try await batch.commit()
+                batch = db.batch()
+                count = 0
+            }
+        }
+        if count > 0 { try await batch.commit() }
+    }
+
+    func listenToWallets(onChange: @escaping ([[String: Any]]) -> Void) throws -> ListenerRegistration {
+        let col = try walletCollection()
+        return col.addSnapshotListener { snap, err in
+            guard let snap = snap, err == nil else { return }
+            onChange(snap.documents.map { doc in
+                var d = doc.data()
+                d["id"] = doc.documentID
+                return d
+            })
+        }
     }
 
     func deleteTransaction(id: String) async throws {

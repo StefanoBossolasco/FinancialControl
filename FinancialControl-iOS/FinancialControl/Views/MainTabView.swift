@@ -3,31 +3,42 @@ import SwiftUI
 struct MainTabView: View {
     @EnvironmentObject var viewModel: FinancialViewModel
     @State private var isAddSheetPresented = false
+    @State private var selectedTab = DebugLaunch.initialTab
 
     var body: some View {
         ZStack(alignment: .top) {
-            TabView {
+            TabView(selection: $selectedTab) {
                 DashboardView()
                     .tabItem {
-                        Label("Dashboard", systemImage: "square.grid.2x2.fill")
+                        Label("Home", systemImage: "house.fill")
                     }
+                    .tag(0)
 
                 TransactionsView()
                     .tabItem {
-                        Label("Transazioni", systemImage: "list.bullet.rectangle.portrait")
+                        Label("Movimenti", systemImage: "list.bullet")
                     }
+                    .tag(1)
+
+                WalletsView()
+                    .tabItem {
+                        Label("Wallet", systemImage: "wallet.pass.fill")
+                    }
+                    .tag(2)
 
                 AnalyticsView()
                     .tabItem {
-                        Label("Analytics", systemImage: "chart.xyaxis.line")
+                        Label("Analisi", systemImage: "chart.xyaxis.line")
                     }
+                    .tag(3)
 
                 MoreTabView()
                     .tabItem {
                         Label("Altro", systemImage: "ellipsis.circle.fill")
                     }
+                    .tag(4)
             }
-            .accentColor(.blue)
+            .tint(Theme.accent)
 
             // Toast Alert Banner
             if let toast = viewModel.toastMessage {

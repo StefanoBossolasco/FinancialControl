@@ -5,7 +5,7 @@ struct AnalyticsView: View {
     @EnvironmentObject var viewModel: FinancialViewModel
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ScrollView {
                 VStack(spacing: 20) {
                     // Pickers
@@ -19,17 +19,18 @@ struct AnalyticsView: View {
                         
                         Picker("Mese", selection: $viewModel.selectedMonth) {
                             ForEach(1...12, id: \.self) { m in
-                                Text(Calendar.current.monthSymbols[m-1].capitalized).tag(m)
+                                Text(Fmt.monthName(m)).tag(m)
                             }
                         }
                         .pickerStyle(.menu)
                     }
-                    .padding(.horizontal)
+                    .tint(Theme.accent)
+                    .card(padding: 8)
 
                     // Balance Evolution Chart with Forecast Line
                     VStack(alignment: .leading, spacing: 12) {
-                        Text("Evoluzione Saldo & Previsione Fine Anno")
-                            .font(.headline)
+                        Text("Saldo e previsione fine anno")
+                            .font(.system(.title3, design: .rounded).weight(.bold))
 
                         let items = computeBalancePoints(year: viewModel.selectedYear)
 
@@ -40,14 +41,14 @@ struct AnalyticsView: View {
                                         x: .value("Mese", pt.label),
                                         y: .value("Saldo", val)
                                     )
-                                    .foregroundStyle(Color.blue)
+                                    .foregroundStyle(Theme.accent)
                                     .interpolationMethod(.monotone)
 
                                     AreaMark(
                                         x: .value("Mese", pt.label),
                                         y: .value("Saldo", val)
                                     )
-                                    .foregroundStyle(LinearGradient(colors: [.blue.opacity(0.3), .blue.opacity(0.0)], startPoint: .top, endPoint: .bottom))
+                                    .foregroundStyle(LinearGradient(colors: [Theme.accent.opacity(0.3), Theme.accent.opacity(0.0)], startPoint: .top, endPoint: .bottom))
                                 }
 
                                 if let fVal = pt.forecastBalance {
@@ -55,7 +56,7 @@ struct AnalyticsView: View {
                                         x: .value("Mese", pt.label),
                                         y: .value("Previsione", fVal)
                                     )
-                                    .foregroundStyle(Color.orange)
+                                    .foregroundStyle(Theme.text2)
                                     .lineStyle(StrokeStyle(lineWidth: 2.5, dash: [6, 6]))
                                     .interpolationMethod(.monotone)
                                 }
@@ -64,14 +65,12 @@ struct AnalyticsView: View {
                         .frame(height: 220)
                         .padding(.top, 8)
                     }
-                    .padding()
-                    .background(Color(.secondarySystemBackground))
-                    .cornerRadius(20)
+                    .card()
 
                     // Monthly Income vs Expenses Chart
                     VStack(alignment: .leading, spacing: 12) {
-                        Text("Andamento Mensile — Entrate vs Uscite")
-                            .font(.headline)
+                        Text("Entrate e uscite per mese")
+                            .font(.system(.title3, design: .rounded).weight(.bold))
 
                         let monthlyItems = computeMonthlyTrend(year: viewModel.selectedYear)
 
@@ -80,27 +79,25 @@ struct AnalyticsView: View {
                                 x: .value("Mese", item.monthLabel),
                                 y: .value("Importo", item.expenses)
                             )
-                            .foregroundStyle(Color.red.opacity(0.85))
+                            .foregroundStyle(Theme.accent.opacity(0.85))
                             .position(by: .value("Tipo", "Uscite"))
 
                             BarMark(
                                 x: .value("Mese", item.monthLabel),
                                 y: .value("Importo", item.income)
                             )
-                            .foregroundStyle(Color.green.opacity(0.85))
+                            .foregroundStyle(Theme.success.opacity(0.85))
                             .position(by: .value("Tipo", "Entrate"))
                         }
                         .chartLegend(.visible)
                         .frame(height: 200)
                     }
-                    .padding()
-                    .background(Color(.secondarySystemBackground))
-                    .cornerRadius(20)
+                    .card()
                     
                     // Spese per Categoria - Mensile
                     VStack(alignment: .leading, spacing: 12) {
-                        Text("Spese per Categoria — Mensile")
-                            .font(.headline)
+                        Text("Spese per categoria del mese")
+                            .font(.system(.title3, design: .rounded).weight(.bold))
                         
                         let categoryItems = computeCategoryExpenses(year: viewModel.selectedYear, month: viewModel.selectedMonth)
                         
@@ -115,20 +112,19 @@ struct AnalyticsView: View {
                                     x: .value("Importo", item.amount),
                                     y: .value("Categoria", item.category)
                                 )
-                                .foregroundStyle(by: .value("Categoria", item.category))
-                                .cornerRadius(4)
+                                .foregroundStyle(CategoryStyle.color(item.category))
+                                .cornerRadius(6)
                             }
                             .chartLegend(.hidden)
                             .frame(height: max(200, CGFloat(categoryItems.count * 40)))
                         }
                     }
-                    .padding()
-                    .background(Color(.secondarySystemBackground))
-                    .cornerRadius(20)
+                    .card()
                 }
-                .padding()
+                .padding(16)
             }
-            .navigationTitle("Analytics")
+            .screenBackground()
+            .navigationTitle("Analisi")
         }
     }
 
@@ -153,7 +149,7 @@ struct AnalyticsView: View {
     }
 
     private func computeBalancePoints(year: Int) -> [BalancePoint] {
-        let months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
+        let months = ["Gen","Feb","Mar","Apr","Mag","Giu","Lug","Ago","Set","Ott","Nov","Dic"]
         var points: [BalancePoint] = []
 
         let txs = viewModel.data.transactions.filter { $0.category != "__exchange__" }
@@ -211,7 +207,7 @@ struct AnalyticsView: View {
     }
 
     private func computeMonthlyTrend(year: Int) -> [MonthlyTrendPoint] {
-        let months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
+        let months = ["Gen","Feb","Mar","Apr","Mag","Giu","Lug","Ago","Set","Ott","Nov","Dic"]
         var points: [MonthlyTrendPoint] = []
         for m in 1...12 {
             let label = months[m-1]

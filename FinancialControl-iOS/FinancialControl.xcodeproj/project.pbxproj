@@ -29,6 +29,12 @@
 		1001001029F1A00000000001 /* Views/LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2001001029F1A00000000001 /* Views/LoginView.swift */; };
 		1001001129F1A00000000001 /* Views/RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2001001129F1A00000000001 /* Views/RootView.swift */; };
 		9001000229F1A00000000001 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 9001000129F1A00000000001 /* GoogleService-Info.plist */; };
+		1001001229F1A00000000001 /* Views/MoreTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2001001229F1A00000000001 /* Views/MoreTabView.swift */; };
+		100101329F1A00000000001 /* Views/Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200101329F1A00000000001 /* Views/Theme.swift */; };
+		100101429F1A00000000001 /* Views/WalletsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200101429F1A00000000001 /* Views/WalletsView.swift */; };
+		100101529F1A00000000001 /* Services/DebugLaunch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200101529F1A00000000001 /* Services/DebugLaunch.swift */; };
+		100101629F1A00000000001 /* Services/SpreadsheetReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200101629F1A00000000001 /* Services/SpreadsheetReader.swift */; };
+		100101729F1A00000000001 /* Services/ImportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200101729F1A00000000001 /* Services/ImportService.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -51,6 +57,12 @@
 		2001001029F1A00000000001 /* Views/LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/LoginView.swift; sourceTree = "<group>"; };
 		2001001129F1A00000000001 /* Views/RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/RootView.swift; sourceTree = "<group>"; };
 		9001000129F1A00000000001 /* GoogleService-Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = "../GoogleService-Info.plist"; sourceTree = "<group>"; };
+		2001001229F1A00000000001 /* Views/MoreTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/MoreTabView.swift; sourceTree = "<group>"; };
+		200101329F1A00000000001 /* Views/Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/Theme.swift; sourceTree = "<group>"; };
+		200101429F1A00000000001 /* Views/WalletsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/WalletsView.swift; sourceTree = "<group>"; };
+		200101529F1A00000000001 /* Services/DebugLaunch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/DebugLaunch.swift; sourceTree = "<group>"; };
+		200101629F1A00000000001 /* Services/SpreadsheetReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/SpreadsheetReader.swift; sourceTree = "<group>"; };
+		200101729F1A00000000001 /* Services/ImportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/ImportService.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -94,6 +106,12 @@
 				2001000B29F1A00000000001 /* Views/AddExpenseSheet.swift */,
 				2001000C29F1A00000000001 /* Views/SettingsView.swift */,
 				2001000D29F1A00000000001 /* Views/ImportView.swift */,
+				2001001229F1A00000000001 /* Views/MoreTabView.swift */,
+				200101729F1A00000000001 /* Services/ImportService.swift */,
+				200101629F1A00000000001 /* Services/SpreadsheetReader.swift */,
+				200101529F1A00000000001 /* Services/DebugLaunch.swift */,
+				200101429F1A00000000001 /* Views/WalletsView.swift */,
+				200101329F1A00000000001 /* Views/Theme.swift */,
 				2001000F29F1A00000000001 /* Services/FirebaseService.swift */,
 				2001001029F1A00000000001 /* Views/LoginView.swift */,
 				2001001129F1A00000000001 /* Views/RootView.swift */,
@@ -195,6 +213,12 @@
 				1001000B29F1A00000000001 /* Views/AddExpenseSheet.swift in Sources */,
 				1001000C29F1A00000000001 /* Views/SettingsView.swift in Sources */,
 				1001000D29F1A00000000001 /* Views/ImportView.swift in Sources */,
+				1001001229F1A00000000001 /* Views/MoreTabView.swift in Sources */,
+				100101729F1A00000000001 /* Services/ImportService.swift in Sources */,
+				100101629F1A00000000001 /* Services/SpreadsheetReader.swift in Sources */,
+				100101529F1A00000000001 /* Services/DebugLaunch.swift in Sources */,
+				100101429F1A00000000001 /* Views/WalletsView.swift in Sources */,
+				100101329F1A00000000001 /* Views/Theme.swift in Sources */,
 				1001000F29F1A00000000001 /* Services/FirebaseService.swift in Sources */,
 				1001001029F1A00000000001 /* Views/LoginView.swift in Sources */,
 				1001001129F1A00000000001 /* Views/RootView.swift in Sources */,
@@ -228,6 +252,7 @@
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.stefanobossolasco.FinancialControl;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_EMIT_LOC_DIGESTS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";

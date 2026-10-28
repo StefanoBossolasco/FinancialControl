@@ -4,6 +4,7 @@ import SwiftUI
 /// based on Firebase auth state, observed via the ViewModel.
 struct RootView: View {
     @EnvironmentObject var viewModel: FinancialViewModel
+    @AppStorage("appearance") private var appearance = "system"
 
     var body: some View {
         Group {
@@ -22,5 +23,7 @@ struct RootView: View {
             }
         }
         .animation(.easeInOut(duration: 0.25), value: viewModel.isLoggedIn)
+        .tint(Theme.accent)
+        .preferredColorScheme(appearance == "light" ? .light : appearance == "dark" ? .dark : nil)
     }
 }

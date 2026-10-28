@@ -7,10 +7,10 @@ struct SettingsView: View {
     @State private var currentPw: String = ""
     @State private var newPw: String = ""
     @State private var confirmPw: String = ""
+    @AppStorage("appearance") private var appearance = "system"
 
     var body: some View {
-        NavigationView {
-            Form {
+        Form {
                 // MARK: - Account
                 Section(header: Text("Account Firebase")) {
                     HStack {
@@ -26,6 +26,16 @@ struct SettingsView: View {
                     }) {
                         Label("Esci dall'account", systemImage: "rectangle.portrait.and.arrow.right")
                     }
+                }
+
+                // MARK: - Aspetto
+                Section(header: Text("Aspetto")) {
+                    Picker("Tema", selection: $appearance) {
+                        Text("Sistema").tag("system")
+                        Text("Chiaro").tag("light")
+                        Text("Scuro").tag("dark")
+                    }
+                    .pickerStyle(.segmented)
                 }
 
                 // MARK: - Cambio password
@@ -81,18 +91,20 @@ struct SettingsView: View {
                     }
                     HStack {
                         Image(systemName: "checkmark.circle.fill")
-                            .foregroundColor(.green)
+                            .foregroundColor(Theme.success)
                         Text("Sincronizzazione Firebase attiva")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                     }
                 }
             }
-            .navigationTitle("Impostazioni")
-            .onAppear {
-                if let initial = viewModel.data.settings.initialBalance {
-                    initialBalanceText = String(format: "%.2f", initial)
-                }
+        .scrollContentBackground(.hidden)
+        .screenBackground()
+        .tint(Theme.accent)
+        .navigationTitle("Impostazioni")
+        .onAppear {
+            if let initial = viewModel.data.settings.initialBalance {
+                initialBalanceText = String(format: "%.2f", initial)
             }
         }
     }

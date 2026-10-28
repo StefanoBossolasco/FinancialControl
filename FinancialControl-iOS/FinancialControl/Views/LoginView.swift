@@ -11,14 +11,17 @@ struct LoginView: View {
     @State private var errorMessage: String? = nil
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ScrollView {
                 VStack(spacing: 28) {
                     // Logo
                     VStack(spacing: 12) {
                         Image(systemName: "wallet.pass.fill")
-                            .font(.system(size: 56))
-                            .foregroundColor(.blue)
+                            .font(.system(size: 36, weight: .semibold))
+                            .foregroundColor(.white)
+                            .frame(width: 84, height: 84)
+                            .background(Theme.hero, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
+                            .shadow(color: Theme.accent.opacity(0.35), radius: 14, x: 0, y: 8)
                         Text("FinancialControl")
                             .font(.largeTitle)
                             .fontWeight(.bold)
@@ -41,8 +44,7 @@ struct LoginView: View {
                                 .autocapitalization(.none)
                                 .disableAutocorrection(true)
                                 .padding()
-                                .background(Color(.secondarySystemBackground))
-                                .cornerRadius(10)
+                                .background(Theme.surface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                         }
 
                         // Password
@@ -53,8 +55,7 @@ struct LoginView: View {
                             SecureField("La tua password", text: $password)
                                 .textContentType(isSignUp ? .newPassword : .password)
                                 .padding()
-                                .background(Color(.secondarySystemBackground))
-                                .cornerRadius(10)
+                                .background(Theme.surface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                         }
 
                         // Confirm password (signup only)
@@ -66,8 +67,7 @@ struct LoginView: View {
                                 SecureField("Ripeti la password", text: $confirmPassword)
                                     .textContentType(.newPassword)
                                     .padding()
-                                    .background(Color(.secondarySystemBackground))
-                                    .cornerRadius(10)
+                                    .background(Theme.surface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                             }
                         }
 
@@ -75,7 +75,7 @@ struct LoginView: View {
                         if let err = errorMessage {
                             Text(err)
                                 .font(.subheadline)
-                                .foregroundColor(.red)
+                                .foregroundColor(Theme.danger)
                                 .multilineTextAlignment(.center)
                                 .padding(.horizontal)
                         }
@@ -93,9 +93,9 @@ struct LoginView: View {
                             }
                             .frame(maxWidth: .infinity)
                             .padding()
-                            .background(Color.blue)
+                            .background(Theme.accent, in: Capsule())
                             .foregroundColor(.white)
-                            .cornerRadius(12)
+                            .shadow(color: Theme.accent.opacity(0.3), radius: 10, x: 0, y: 6)
                         }
                         .disabled(isLoading)
 
@@ -105,7 +105,7 @@ struct LoginView: View {
                                  ? "Hai già un account? Accedi"
                                  : "Non hai un account? Registrati")
                                 .font(.subheadline)
-                                .foregroundColor(.blue)
+                                .foregroundColor(Theme.accentInk)
                         }
 
                         // Forgot password (login only)
@@ -121,6 +121,7 @@ struct LoginView: View {
                 }
                 .padding(.bottom, 40)
             }
+            .screenBackground()
             .navigationBarHidden(true)
         }
     }
