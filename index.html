@@ -7,6 +7,13 @@
   <meta name="description" content="Piattaforma personale per il controllo delle finanze: budget, categorie, estratti conto Revolut e Intesa San Paolo.">
   <meta name="theme-color" content="#f6f6f8" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#0e0e11" media="(prefers-color-scheme: dark)">
+  <!-- Installable web app (Add to Home Screen) -->
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Finanze">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='9' fill='%23f23a4c'/><path d='M9 11.5h11.5a2.5 2.5 0 0 1 2.5 2.5v7a2.5 2.5 0 0 1-2.5 2.5H11.5A2.5 2.5 0 0 1 9 21z' fill='none' stroke='white' stroke-width='2.2'/><path d='M9 11.5 18.5 8' stroke='white' stroke-width='2.2' stroke-linecap='round'/><circle cx='19' cy='17.5' r='1.6' fill='white'/></svg>">
 
   <!-- Google Fonts -->
@@ -1082,6 +1089,12 @@
 <script src="js/import.js?v=3.1"></script>
 <script src="js/charts.js?v=3.0"></script>
 <script src="js/app.js?v=3.1"></script>
+<script>
+  // Offline support for the home-screen app (https or localhost only)
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(err => console.warn('SW:', err)));
+  }
+</script>
 
 </body>
 </html>
