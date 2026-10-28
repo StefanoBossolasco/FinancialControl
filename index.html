@@ -22,7 +22,7 @@
   <!-- Lucide Icons -->
   <script src="https://cdn.jsdelivr.net/npm/lucide@0.395.0/dist/umd/lucide.min.js"></script>
 
-  <link rel="stylesheet" href="css/styles.css?v=2.0.0">
+  <link rel="stylesheet" href="css/styles.css?v=2.0.1">
 </head>
 <body>
 
@@ -472,30 +472,15 @@
         <!-- STEP 1: Upload files -->
         <div class="imp-step" id="imp-step-1">
           <p class="muted imp-intro">
-            Puoi caricare uno o più file insieme. Per la conversione USD→EUR carica sia il file EUR che quello USD di Revolut.
+            Carica uno o più estratti conto insieme: la fonte di ogni file viene riconosciuta dal contenuto.
           </p>
-          <div class="dz-grid">
-            <div class="dropzone" id="dz-rev-eur">
-              <div class="dz-icon tint-green"><i data-lucide="euro" class="lucide-icon"></i></div>
-              <div class="dz-label">Revolut EUR</div>
-              <div class="dz-hint">File .csv (valuta EUR)</div>
-            </div>
-            <div class="dropzone" id="dz-rev-usd">
-              <div class="dz-icon tint-blue"><i data-lucide="dollar-sign" class="lucide-icon"></i></div>
-              <div class="dz-label">Revolut USD</div>
-              <div class="dz-hint">File .csv (valuta USD)</div>
-            </div>
-            <div class="dropzone" id="dz-intesa">
-              <div class="dz-icon tint-purple"><i data-lucide="landmark" class="lucide-icon"></i></div>
-              <div class="dz-label">Intesa San Paolo</div>
-              <div class="dz-hint">File .xlsx da Area Clienti</div>
-            </div>
-            <div class="dropzone" id="dz-satispay">
-              <div class="dz-icon tint-accent"><i data-lucide="smartphone" class="lucide-icon"></i></div>
-              <div class="dz-label">Satispay</div>
-              <div class="dz-hint">Export .xlsx o .csv dall'app</div>
-            </div>
+          <div class="dropzone dz-single" id="dz-import" role="button" tabindex="0" aria-label="Carica estratti conto">
+            <div class="dz-icon tint-accent"><i data-lucide="upload" class="lucide-icon"></i></div>
+            <div class="dz-label">Trascina qui i file o tocca per sceglierli</div>
+            <div class="dz-hint">Revolut EUR / USD (.csv) · Intesa San Paolo (.xlsx) · Satispay (.xlsx, .csv)</div>
           </div>
+          <ul class="imp-file-list" id="imp-file-list" aria-live="polite"></ul>
+          <div id="imp-file-hint"></div>
           <div class="imp-nav">
             <span></span>
             <button class="btn btn-primary" id="imp-next-1">
@@ -1094,9 +1079,9 @@
 <script src="js/firebase.js?v=2.0"></script>
 <script src="js/auth.js?v=2.0"></script>
 <script src="js/data.js?v=2.4"></script>
-<script src="js/import.js?v=3.0"></script>
+<script src="js/import.js?v=3.1"></script>
 <script src="js/charts.js?v=3.0"></script>
-<script src="js/app.js?v=3.0"></script>
+<script src="js/app.js?v=3.1"></script>
 
 </body>
 </html>

@@ -612,6 +612,127 @@ const Import = (() => {
     return uniqueIds(transactions);
   }
 
+  // ── Source detection ──────────────────────────────────────
+  // One upload area accepts any statement: the source is sniffed from the content
+  // (never the filename). Shared rules — a share-sheet import on iOS should mirror them:
+  //
+  //   readImportTable(bytes: ArrayBuffer|Uint8Array)
+  //     → { kind: 'xlsx'|'csv', rows: string[][] (first sheet, ≤ 60 rows), sheetNames: string[], text?: string }
+  //     xlsx/xls when the bytes start with "PK\x03\x04" (zip) or D0 CF 11 E0 (OLE), otherwise UTF-8 CSV.
+  //
+  //   detectImportSource(table) → { source: SourceId|null, reason: string }
+  //     A "header row" is any of the first 60 rows; cells are compared lower-case, accents and BOM stripped.
+  //     - Revolut: a header row with amount|importo + currency|valuta + state|stato and one of
+  //       started date|completed date|product|prodotto|data di inizio|data inizio.
+  //       EUR vs USD = majority of the Currency column values below it; any other currency → null.
+  //     - Satispay: a header row with date|data + amount|importo + name|nome + type|tipo and one of
+  //       status|stato|id…|balance after transaction|saldo dopo…; or a workbook whose sheets are
+  //       "Transactions" + "Legend".
+  //     - Intesa San Paolo: a header row with data + importo + operazione and one of dettagli|
+  //       conto o carta|contabilizzazione|categoria; or the account preamble ("Conti e Carte:",
+  //       "Data inizio periodo:") above a header row with data + importo|entrate|uscite.
+  //     - Anything else → { source: null } (the UI asks the user to pick the source).
+  //
+  //   parseBySource(source, bytes) → { transactions, exchanges } (exchanges only for Revolut)
+  //     routes to parseRevolutCSV / parseIntesaXLSX / parseSatispayXLSX unchanged.
+  //
+  // SourceId: 'revolut_eur' | 'revolut_usd' | 'intesa' | 'satispay' (same values as tx.source).
+  const SOURCES = {
+    revolut_eur: 'Revolut EUR',
+    revolut_usd: 'Revolut USD',
+    intesa:      'Intesa San Paolo',
+    satispay:    'Satispay',
+  };
+
+  const HEADER_SCAN_ROWS = 60;
+
+  function isSpreadsheet(u8) {
+    return (u8[0] === 0x50 && u8[1] === 0x4B && u8[2] === 0x03 && u8[3] === 0x04) ||
+           (u8[0] === 0xD0 && u8[1] === 0xCF && u8[2] === 0x11 && u8[3] === 0xE0);
+  }
+
+  function readImportTable(bytes) {
+    const u8 = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+    if (isSpreadsheet(u8)) {
+      const wb = XLSX.read(u8, { type: 'array', sheetRows: HEADER_SCAN_ROWS });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = ws ? XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' }) : [];
+      return { kind: 'xlsx', rows: rows.map(r => r.map(c => String(c ?? ''))), sheetNames: wb.SheetNames };
+    }
+    const text = new TextDecoder('utf-8').decode(u8).replace(/^﻿/, '');
+    const { data } = Papa.parse(text.trim(), { header: false, skipEmptyLines: true, preview: HEADER_SCAN_ROWS });
+    return { kind: 'csv', rows: data.map(r => r.map(c => String(c ?? ''))), sheetNames: [], text };
+  }
+
+  const normCell = c => stripAccents(String(c ?? '')).replace(/^﻿/, '').trim().toLowerCase();
+
+  function detectImportSource(table) {
+    const rows = (table?.rows || []).slice(0, HEADER_SCAN_ROWS).map(r => (r || []).map(normCell));
+    const has = (h, ...names) => names.some(n => h.includes(n));
+    const hasPrefix = (h, ...names) => h.some(c => names.some(n => c.startsWith(n)));
+
+    for (let i = 0; i < rows.length; i++) {
+      const h = rows[i];
+
+      // Revolut
+      if (has(h, 'amount', 'importo') && has(h, 'currency', 'valuta') && has(h, 'state', 'stato') &&
+          has(h, 'started date', 'completed date', 'product', 'prodotto', 'data di inizio', 'data inizio')) {
+        const curCol = h.findIndex(c => c === 'currency' || c === 'valuta');
+        const counts = {};
+        rows.slice(i + 1).forEach(r => {
+          const cur = (r[curCol] || '').toUpperCase();
+          if (cur) counts[cur] = (counts[cur] || 0) + 1;
+        });
+        const [cur] = Object.entries(counts).sort((a, b) => b[1] - a[1])[0] || ['EUR'];
+        if (cur === 'EUR') return { source: 'revolut_eur', reason: 'Colonne Revolut, valuta EUR' };
+        if (cur === 'USD') return { source: 'revolut_usd', reason: 'Colonne Revolut, valuta USD' };
+        return { source: null, reason: `Estratto Revolut in ${cur}: sono supportati solo EUR e USD` };
+      }
+
+      // Satispay
+      if (has(h, 'date', 'data') && has(h, 'amount', 'importo') && has(h, 'name', 'nome') && has(h, 'type', 'tipo') &&
+          (has(h, 'status', 'stato') || hasPrefix(h, 'id', 'balance after', 'saldo dopo'))) {
+        return { source: 'satispay', reason: 'Colonne Satispay (Name, Type, Status, ID)' };
+      }
+
+      // Intesa San Paolo
+      if (h.includes('data') && h.includes('importo') && h.includes('operazione') &&
+          (has(h, 'dettagli', 'conto o carta', 'contabilizzazione') || hasPrefix(h, 'categoria'))) {
+        return { source: 'intesa', reason: 'Tabella "Lista Operazione" Intesa' };
+      }
+    }
+
+    const sheets = (table?.sheetNames || []).map(normCell);
+    if (sheets[0] === 'transactions' && sheets.includes('legend')) {
+      return { source: 'satispay', reason: 'Fogli "Transactions" e "Legend" di Satispay' };
+    }
+
+    const flat = rows.map(r => r.join(' '));
+    const preamble = flat.some(s => s.startsWith('conti e carte')) || flat.some(s => s.startsWith('data inizio periodo'));
+    if (preamble && rows.some(h => hasPrefix(h, 'data') && hasPrefix(h, 'importo', 'entrate', 'uscite'))) {
+      return { source: 'intesa', reason: 'Intestazione conto Intesa' };
+    }
+
+    return { source: null, reason: 'Formato non riconosciuto' };
+  }
+
+  function parseBySource(source, bytes) {
+    const u8 = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+    if (source === 'revolut_eur' || source === 'revolut_usd') {
+      let text;
+      if (isSpreadsheet(u8)) {
+        const wb = XLSX.read(u8, { type: 'array' });
+        text = XLSX.utils.sheet_to_csv(wb.Sheets[wb.SheetNames[0]]);
+      } else {
+        text = new TextDecoder('utf-8').decode(u8);
+      }
+      return parseRevolutCSV(text, source === 'revolut_usd' ? 'USD' : 'EUR');
+    }
+    if (source === 'intesa')   return { transactions: parseIntesaXLSX(u8), exchanges: [] };
+    if (source === 'satispay') return { transactions: parseSatispayXLSX(u8), exchanges: [] };
+    throw new Error('Fonte sconosciuta: ' + source);
+  }
+
   // ── Exchange rate matching ────────────────────────────────
   function matchExchanges(eurExchanges, usdExchanges) {
     if (!eurExchanges.length || !usdExchanges.length) return null;
@@ -654,6 +775,7 @@ const Import = (() => {
   }
 
   return {
+    SOURCES, readImportTable, detectImportSource, parseBySource,
     parseRevolutCSV, parseIntesaXLSX, parseSatispayXLSX, matchExchanges, applyEURConversion,
     suggestCategory, categorize, findDuplicates
   };

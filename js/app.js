@@ -326,7 +326,7 @@ function resetImportIfNeeded() {
 
 function resetImport() {
   S.imp = {
-    step: 1, eurParsed: null, usdParsed: null, intesaTxs: null, satispayTxs: null,
+    step: 1, files: [], eurParsed: null, usdParsed: null, intesaTxs: null, satispayTxs: null,
     exchangeInfo: null, merged: [], page: 0, PAGE_SIZE: 40, manualRate: null
   };
 }
@@ -342,114 +342,151 @@ function showImportStep(step) {
     s.classList.toggle('done',     i + 1 < step);
   });
 
+  if (step === 1) renderImportFiles();
   if (step === 2) buildImportReviewTable();
   if (step === 3) buildImportSummary();
 }
 
-function setupDropzone(id, handler) {
-  const zone = el(id);
+// ── Step 1: one upload area, source detected from each file's content ──
+function setupImportDropzone() {
+  const zone = el('dz-import');
   if (!zone) return;
   zone.addEventListener('dragover',  e => { e.preventDefault(); zone.classList.add('drag-over'); });
   zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
   zone.addEventListener('drop', e => {
     e.preventDefault(); zone.classList.remove('drag-over');
-    const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
-    if (file) handler(file, zone);
+    addImportFiles(e.dataTransfer?.files);
   });
-  zone.addEventListener('click', e => {
-    if (e.target && e.target.tagName === 'INPUT') return;
+  const pick = () => {
     const inp = document.createElement('input');
     inp.type = 'file';
-    inp.accept = id.includes('intesa') ? '.xlsx,.xls' : id.includes('satispay') ? '.xlsx,.xls,.csv' : '.csv';
+    inp.multiple = true;
+    inp.accept = '.csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel';
     inp.style.display = 'none';
     document.body.appendChild(inp);
-    inp.onchange = () => {
-      if (inp.files && inp.files[0]) {
-        handler(inp.files[0], zone);
-      }
-      document.body.removeChild(inp);
-    };
+    inp.onchange = () => { addImportFiles(inp.files); document.body.removeChild(inp); };
     inp.click();
-  });
+  };
+  zone.addEventListener('click', pick);
+  zone.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } });
 }
 
-function markDropzone(zone, filename) {
-  zone.classList.add('loaded');
-  zone.querySelector('.dz-label').textContent = filename;
-  zone.querySelector('.dz-icon').innerHTML = '<i data-lucide="check" class="lucide-icon"></i>';
+let impFileSeq = 0;
+
+function addImportFiles(fileList) {
+  const files = Array.from(fileList || []);
+  if (!files.length) return;
+  Promise.all(files.map(f => f.arrayBuffer().then(buf => ({ f, buf })))).then(loaded => {
+    loaded.forEach(({ f, buf }) => {
+      const entry = { id: ++impFileSeq, name: f.name, buf, detected: null, source: null, parsed: null, error: '' };
+      try {
+        entry.detected = Import.detectImportSource(Import.readImportTable(buf));
+      } catch (err) {
+        console.warn('[import] File non leggibile:', f.name, err);
+        entry.detected = { source: null, reason: 'File non leggibile come CSV o Excel' };
+      }
+      setImportFileSource(entry, entry.detected.source);
+      S.imp.files.push(entry);
+    });
+    rebuildImportSources();
+    renderImportFiles();
+  }).catch(err => showToast('Errore nella lettura dei file: ' + err.message, 'error'));
+}
+
+// Parses the file as `source` (null = not assigned yet)
+function setImportFileSource(entry, source) {
+  entry.source = source || null;
+  entry.parsed = null;
+  entry.error  = '';
+  if (!entry.source) return;
+  try {
+    entry.parsed = Import.parseBySource(entry.source, entry.buf);
+    if (!entry.parsed.transactions.length) entry.error = 'Nessuna transazione valida trovata con questa fonte';
+  } catch (err) {
+    console.warn('[import] Parsing fallito:', entry.name, entry.source, err);
+    entry.error = 'Il file non è leggibile come ' + Import.SOURCES[entry.source];
+  }
+}
+
+// Rebuilds the per-source data steps 2–3 use. Several files of the same source are
+// concatenated; a row already seen (same id, e.g. overlapping exports) is kept once.
+function rebuildImportSources() {
+  const by = { revolut_eur: null, revolut_usd: null, intesa: null, satispay: null };
+  S.imp.files.forEach(f => {
+    if (!f.source || f.error || !f.parsed) return;
+    const acc = by[f.source] || (by[f.source] = { transactions: [], exchanges: [], ids: new Set() });
+    f.parsed.transactions.forEach(t => {
+      if (acc.ids.has(t.id)) return;
+      acc.ids.add(t.id);
+      acc.transactions.push(t);
+      if (t.category === '__exchange__') acc.exchanges.push(t);
+    });
+  });
+  const strip = p => p && { transactions: p.transactions, exchanges: p.exchanges };
+  S.imp.eurParsed   = strip(by.revolut_eur);
+  S.imp.usdParsed   = strip(by.revolut_usd);
+  S.imp.intesaTxs   = by.intesa?.transactions || null;
+  S.imp.satispayTxs = by.satispay?.transactions || null;
+  S.imp.merged = []; S.imp.page = 0;
+}
+
+const IMP_SOURCE_ICON = { revolut_eur: 'euro', revolut_usd: 'dollar-sign', intesa: 'landmark', satispay: 'smartphone' };
+
+function renderImportFiles() {
+  const list = el('imp-file-list');
+  if (!list) return;
+  const files = S.imp.files || [];
+  const zone = el('dz-import');
+  zone?.classList.toggle('compact', files.length > 0);
+
+  const options = sel => `<option value="" ${sel ? '' : 'selected'}>Scegli la fonte…</option>` +
+    Object.entries(Import.SOURCES).map(([id, label]) => `<option value="${id}" ${id === sel ? 'selected' : ''}>${label}</option>`).join('');
+
+  list.innerHTML = files.map(f => {
+    const ok = f.source && !f.error;
+    const n  = ok ? f.parsed.transactions.filter(t => t.category !== '__exchange__').length : 0;
+    const corrected = f.source && f.detected?.source !== f.source;
+    let status;
+    if (ok) {
+      status = `<span class="badge imp-file-chip">${Import.SOURCES[f.source]} · ${n} ${n === 1 ? 'riga' : 'righe'}</span>` +
+        (corrected ? '<span class="imp-file-note">scelta a mano</span>' : '');
+    } else if (f.source) {
+      status = `<span class="imp-file-error">${escHtml(f.error)}</span>`;
+    } else {
+      status = `<span class="imp-file-error">${escHtml(f.detected?.reason || 'Formato non riconosciuto')}. Scegli la fonte o rimuovi il file.</span>`;
+    }
+    return `<li class="imp-file ${ok ? '' : 'bad'}" data-id="${f.id}">
+      <div class="dz-icon imp-file-icon ${ok ? 'tint-green' : ''}"><i data-lucide="${ok ? IMP_SOURCE_ICON[f.source] : 'file-question'}" class="lucide-icon"></i></div>
+      <div class="imp-file-main">
+        <div class="imp-file-name" title="${escHtml(f.name)}">${escHtml(f.name)}</div>
+        <div class="imp-file-status">${status}</div>
+      </div>
+      <select class="select-styled imp-file-src" aria-label="Fonte di ${escHtml(f.name)}" onchange="changeImportFileSource(${f.id}, this.value)">${options(f.source)}</select>
+      <button class="icon-btn sm imp-file-remove" title="Rimuovi" aria-label="Rimuovi ${escHtml(f.name)}" onclick="removeImportFile(${f.id})"><i data-lucide="x" class="lucide-icon icon-sm"></i></button>
+    </li>`;
+  }).join('');
+
+  const usable = files.filter(f => f.source && !f.error);
+  const hasEur = usable.some(f => f.source === 'revolut_eur');
+  const hasUsd = usable.some(f => f.source === 'revolut_usd');
+  set('imp-file-hint', hasUsd && !hasEur
+    ? '<div class="warn-banner"><i data-lucide="alert-triangle" class="lucide-icon icon-sm"></i> Per calcolare il tasso USD→EUR carica anche l\'estratto Revolut EUR (altrimenti si usa il tasso medio storico).</div>'
+    : '');
   refreshIcons();
 }
 
-function handleRevolutEUR(file, zone) {
-  const reader = new FileReader();
-  reader.onload = e => {
-    try {
-      S.imp.eurParsed = Import.parseRevolutCSV(e.target.result, 'EUR');
-      if (!S.imp.eurParsed || !S.imp.eurParsed.transactions.length) {
-        showToast('Nessuna transazione valida trovata in ' + file.name, 'warning');
-        return;
-      }
-      markDropzone(zone, file.name);
-      showToast(`Revolut EUR: ${S.imp.eurParsed.transactions.length} righe caricate`, 'success');
-    } catch (err) { showToast('Errore nel file Revolut EUR: ' + err.message, 'error'); }
-  };
-  reader.readAsText(file);
+function changeImportFileSource(id, source) {
+  const f = S.imp.files.find(x => x.id === id);
+  if (!f) return;
+  setImportFileSource(f, source);
+  rebuildImportSources();
+  renderImportFiles();
 }
 
-function handleRevolutUSD(file, zone) {
-  const reader = new FileReader();
-  reader.onload = e => {
-    try {
-      S.imp.usdParsed = Import.parseRevolutCSV(e.target.result, 'USD');
-      if (!S.imp.usdParsed || !S.imp.usdParsed.transactions.length) {
-        showToast('Nessuna transazione valida trovata in ' + file.name, 'warning');
-        return;
-      }
-      markDropzone(zone, file.name);
-      showToast(`Revolut USD: ${S.imp.usdParsed.transactions.length} righe caricate`, 'success');
-    } catch (err) { showToast('Errore nel file Revolut USD: ' + err.message, 'error'); }
-  };
-  reader.readAsText(file);
-}
-
-function handleIntesa(file, zone) {
-  const reader = new FileReader();
-  reader.onload = e => {
-    try {
-      const arrayBuffer = e.target.result;
-      const data = new Uint8Array(arrayBuffer);
-      S.imp.intesaTxs = Import.parseIntesaXLSX(data);
-      if (!S.imp.intesaTxs || !S.imp.intesaTxs.length) {
-        showToast('Nessuna transazione valida trovata in ' + file.name, 'warning');
-        return;
-      }
-      markDropzone(zone, file.name);
-      showToast(`Intesa: ${S.imp.intesaTxs.length} righe caricate`, 'success');
-    } catch (err) {
-      console.error('[handleIntesa] Errore parsing Intesa XLSX:', err);
-      showToast('Errore nel file Intesa: ' + err.message, 'error');
-    }
-  };
-  reader.readAsArrayBuffer(file);
-}
-
-function handleSatispay(file, zone) {
-  const reader = new FileReader();
-  reader.onload = e => {
-    try {
-      S.imp.satispayTxs = Import.parseSatispayXLSX(new Uint8Array(e.target.result));
-      if (!S.imp.satispayTxs.length) {
-        showToast('Nessuna transazione valida trovata in ' + file.name, 'warning');
-        return;
-      }
-      markDropzone(zone, file.name);
-      showToast(`Satispay: ${S.imp.satispayTxs.length} righe caricate`, 'success');
-    } catch (err) {
-      console.error('[handleSatispay] Errore parsing Satispay:', err);
-      showToast('Errore nel file Satispay: ' + err.message, 'error');
-    }
-  };
-  reader.readAsArrayBuffer(file);
+function removeImportFile(id) {
+  S.imp.files = S.imp.files.filter(x => x.id !== id);
+  rebuildImportSources();
+  renderImportFiles();
 }
 
 function processImportFiles() {
@@ -2182,10 +2219,7 @@ document.addEventListener('DOMContentLoaded', () => {
   window.addEventListener('resize', () => { if (window.innerWidth > MOBILE_BP) closeMobileSheet(); });
 
   // Import dropzones
-  setupDropzone('dz-rev-eur', handleRevolutEUR);
-  setupDropzone('dz-rev-usd', handleRevolutUSD);
-  setupDropzone('dz-intesa',  handleIntesa);
-  setupDropzone('dz-satispay', handleSatispay);
+  setupImportDropzone();
 
   // Import controls
   el('imp-next-1')?.addEventListener('click', () => {
@@ -2195,6 +2229,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const hasSat = S.imp.satispayTxs?.length > 0;
     // Re-run parsing merge, categories and duplicate check with the files now loaded
     S.imp.merged = []; S.imp.page = 0;
+    if (S.imp.files.some(f => !f.source || f.error)) { showToast('Alcuni file non sono riconosciuti: scegli la fonte o rimuovili', 'warning'); return; }
     if (!hasEur && !hasUsd && !hasInt && !hasSat) { showToast('Carica almeno un file valido prima di proseguire', 'warning'); return; }
     showImportStep(2);
   });
