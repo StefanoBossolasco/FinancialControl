@@ -4,7 +4,7 @@
 // Versioned CDN libraries and fonts: cache first.
 // Firebase Auth/Firestore traffic is never intercepted.
 // ============================================================
-const CACHE = 'fc-shell-v1';
+const CACHE = 'fc-shell-v2';
 const SHELL = ['./', 'index.html', 'css/styles.css', 'manifest.webmanifest', 'icons/apple-touch-icon.png'];
 const CDN_HOSTS = ['cdn.jsdelivr.net', 'www.gstatic.com', 'fonts.googleapis.com', 'fonts.gstatic.com'];
 

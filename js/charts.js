@@ -523,6 +523,33 @@ const Charts = (() => {
     });
   }
 
+  // ── Subscriptions — charges per month (last 12 months) ────
+  // months: ['YYYY-MM', ...]; subs: totals per month (same order)
+  function subscriptionMonths(id, months, subs) {
+    const t = theme();
+    const labels = months.map(m => MONTHS[+m.substring(5, 7) - 1] + (m.endsWith('-01') ? ` ${m.substring(2, 4)}` : ''));
+    const bar = (label, data, color) => ({ label, data, backgroundColor: color, borderRadius: 6, borderSkipped: false,
+      barPercentage: 0.8, categoryPercentage: 0.7 });
+    return create(id, {
+      type: 'bar',
+      data: { labels, datasets: [bar('Abbonamenti', subs, t.accent)] },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${fmt(ctx.raw)}` } }
+        },
+        scales: {
+          x: { grid: { display: false }, border: { display: false }, ticks: { maxRotation: 0, autoSkipPadding: 6 } },
+          y: { beginAtZero: true, grid: { color: t.grid }, border: { display: false },
+               ticks: { callback: v => fmt(v, true), maxTicksLimit: 5 } }
+        }
+      }
+    });
+  }
+
   return { walletTimeline, donut, budgetBar, monthlyTrend, annualStacked, balanceLine, yearComparison, forecast, destroy,
-           applyTheme, categoryStyle };
+           subscriptionMonths, applyTheme, categoryStyle };
 })();

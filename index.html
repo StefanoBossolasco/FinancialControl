@@ -29,7 +29,7 @@
   <!-- Lucide Icons -->
   <script src="https://cdn.jsdelivr.net/npm/lucide@0.395.0/dist/umd/lucide.min.js"></script>
 
-  <link rel="stylesheet" href="css/styles.css?v=2.0.1">
+  <link rel="stylesheet" href="css/styles.css?v=2.1.0">
 </head>
 <body>
 
@@ -133,6 +133,9 @@
       </a>
       <a href="#" class="nav-link" data-view="wallets" id="nav-wallets">
         <span class="nav-icon"><i data-lucide="wallet-cards" class="lucide-icon"></i></span><span>Wallet</span>
+      </a>
+      <a href="#" class="nav-link" data-view="subscriptions" id="nav-subscriptions">
+        <span class="nav-icon"><i data-lucide="repeat" class="lucide-icon"></i></span><span>Abbonamenti</span>
       </a>
       <a href="#" class="nav-link" data-view="analytics" id="nav-analytics">
         <span class="nav-icon"><i data-lucide="line-chart" class="lucide-icon"></i></span><span>Analisi</span>
@@ -441,6 +444,50 @@
             <div class="tx-list tx-list-scroll" id="wd-tx-body"></div>
           </div>
         </div>
+
+      </section>
+
+      <!-- ═══════════════════════════════════════════════════ -->
+      <!-- VIEW: SUBSCRIPTIONS                                 -->
+      <!-- ═══════════════════════════════════════════════════ -->
+      <section id="view-subscriptions" class="view hidden">
+
+        <div class="page-head">
+          <p class="page-sub">Pagamenti ricorrenti trovati nei movimenti: conferma gli abbonamenti giusti e ignora gli altri.</p>
+          <div class="page-actions">
+            <button class="btn btn-primary btn-sm" onclick="openSubAddModal()">
+              <i data-lucide="plus" class="lucide-icon icon-sm"></i> Aggiungi a mano
+            </button>
+          </div>
+        </div>
+
+        <div class="sub-top">
+        <div class="hero-card sub-hero">
+          <div class="hero-label">Abbonamenti attivi</div>
+          <div class="hero-amount"><span id="sub-kpi-monthly">€ 0</span><span class="hero-unit">/mese</span></div>
+          <div class="hero-stats">
+            <div class="hero-stat">
+              <span class="hero-stat-label"><i data-lucide="calendar-range" class="lucide-icon icon-xs"></i> All'anno</span>
+              <span class="kpi-value" id="sub-kpi-yearly">€ 0</span>
+            </div>
+            <div class="hero-stat">
+              <span class="hero-stat-label"><i data-lucide="repeat" class="lucide-icon icon-xs"></i> Attivi</span>
+              <span class="kpi-value" id="sub-kpi-count">0</span>
+            </div>
+            <div class="hero-stat" title="Affitto, bollette, rate e altre spese fisse attive">
+              <span class="hero-stat-label"><i data-lucide="home" class="lucide-icon icon-xs"></i> Fisse/mese</span>
+              <span class="kpi-value" id="sub-kpi-recurring">€ 0</span>
+            </div>
+          </div>
+        </div>
+        <div class="chart-card">
+          <h3>Addebiti abbonamenti · 12 mesi</h3>
+          <div id="sub-chart-wrap" class="chart-wrap sub-chart-wrap"><canvas id="chart-subs"></canvas></div>
+        </div>
+        </div>
+
+        <div class="sub-tabs" id="sub-tabs" role="tablist"></div>
+        <div id="sub-list"></div>
 
       </section>
 
@@ -1079,16 +1126,71 @@
   </div>
 </div>
 
+<!-- ══════════════════════════════════════════════════════════ -->
+<!--  MODAL: SUBSCRIPTION DETAIL                               -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div id="modal-sub" class="modal-overlay hidden">
+  <div class="modal-content">
+    <div class="modal-header">
+      <div class="sub-modal-title">
+        <div class="tx-avatar" id="sub-d-avatar"><i data-lucide="repeat" class="lucide-icon"></i></div>
+        <div style="min-width:0">
+          <h3 id="sub-d-name">—</h3>
+          <div class="muted small" id="sub-d-kind"></div>
+        </div>
+      </div>
+      <button class="icon-btn" onclick="closeSubModal()" aria-label="Chiudi">
+        <i data-lucide="x" class="lucide-icon"></i>
+      </button>
+    </div>
+    <div class="modal-body" id="sub-d-body"></div>
+    <div class="modal-footer" id="sub-d-actions"></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!--  MODAL: ADD SUBSCRIPTION BY HAND                          -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div id="modal-sub-add" class="modal-overlay hidden">
+  <div class="modal-content modal-md">
+    <div class="modal-header">
+      <h3>Segna come abbonamento</h3>
+      <button class="icon-btn" onclick="closeSubAddModal()" aria-label="Chiudi">
+        <i data-lucide="x" class="lucide-icon"></i>
+      </button>
+    </div>
+    <form id="sub-add-form">
+      <div class="modal-body">
+        <p class="form-hint">Scegli l'esercente: tutti i suoi addebiti verranno contati come un abbonamento.</p>
+        <div class="search-input-wrap mb-1">
+          <i data-lucide="search" class="lucide-icon icon-sm search-icon"></i>
+          <input type="text" id="sub-add-search" class="input-with-icon" placeholder="Cerca esercente…" autocomplete="off">
+        </div>
+        <div class="sub-pick-list" id="sub-add-list" role="radiogroup" aria-label="Esercente"></div>
+        <div class="form-group mb-0 mt-1">
+          <label for="sub-add-freq">Frequenza</label>
+          <select id="sub-add-freq"></select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeSubAddModal()">Annulla</button>
+        <button type="submit" class="btn btn-primary">Salva abbonamento</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <!-- Scripts -->
 <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-firestore-compat.js"></script>
 <script src="js/firebase.js?v=2.0"></script>
 <script src="js/auth.js?v=2.0"></script>
-<script src="js/data.js?v=2.4"></script>
-<script src="js/import.js?v=3.1"></script>
-<script src="js/charts.js?v=3.0"></script>
-<script src="js/app.js?v=3.1"></script>
+<script src="js/data.js?v=2.5"></script>
+<script src="js/import.js?v=3.2"></script>
+<script src="js/subscriptions.js?v=1.0"></script>
+<script src="js/charts.js?v=3.1"></script>
+<script src="js/app.js?v=3.2"></script>
 <script>
   // Offline support for the home-screen app (https or localhost only)
   if ('serviceWorker' in navigator) {

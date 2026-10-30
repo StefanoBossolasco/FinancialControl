@@ -777,6 +777,6 @@ const Import = (() => {
   return {
     SOURCES, readImportTable, detectImportSource, parseBySource,
     parseRevolutCSV, parseIntesaXLSX, parseSatispayXLSX, matchExchanges, applyEURConversion,
-    suggestCategory, categorize, findDuplicates
+    suggestCategory, categorize, findDuplicates, KW_MAP
   };
 })();

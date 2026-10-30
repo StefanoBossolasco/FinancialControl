@@ -29,6 +29,11 @@ const S = {
   // Wallets page: currently selected wallet
   walletId: null,
 
+  // Subscriptions page: active tab, open detail, "add by hand" selection
+  subTab: 'subscription',
+  subKey: null,
+  subAddKey: null,
+
   // Transactions list
   txFilter: { search: '', category: '', source: '', year: '', wallet: '', page: 0, PAGE_SIZE: 50 },
   txSelected: new Set(),
@@ -45,6 +50,7 @@ const PAGE_TITLES = {
   dashboard:    'Home',
   budget:       'Budget',
   wallets:      'Wallet',
+  subscriptions: 'Abbonamenti',
   import:       'Importa',
   transactions: 'Movimenti',
   analytics:    'Analisi',
@@ -52,7 +58,7 @@ const PAGE_TITLES = {
 };
 
 // Views reached from the "Altro" sheet on phones
-const MORE_VIEWS = ['budget', 'analytics', 'import', 'settings'];
+const MORE_VIEWS = ['budget', 'subscriptions', 'analytics', 'import', 'settings'];
 const MOBILE_BP = 860;
 
 // ── Helpers ───────────────────────────────────────────────────
@@ -122,6 +128,7 @@ function navigate(view) {
     case 'dashboard':    renderDashboard();    break;
     case 'budget':       renderBudgetView();   break;
     case 'wallets':      renderWallets();      break;
+    case 'subscriptions': renderSubscriptions(); break;
     case 'import':       renderImport();       break;
     case 'transactions': renderTransactions(); break;
     case 'analytics':    renderAnalytics();    break;
@@ -1007,6 +1014,301 @@ async function deleteWallet(id) {
   S.walletId = null;
   showToast('Wallet eliminato', 'info');
   navigate('wallets');
+}
+
+// ── SUBSCRIPTIONS ─────────────────────────────────────────────
+const SUB_TABS = [
+  { id: 'subscription', label: 'Abbonamenti' },
+  { id: 'uncertain',    label: 'Da verificare' },
+  { id: 'recurring',    label: 'Spese fisse' },
+  { id: 'dismissed',    label: 'Ignorati' }
+];
+const SUB_KIND_LABEL = { subscription: 'Abbonamento', uncertain: 'Da verificare', recurring: 'Spesa fissa, non abbonamento' };
+
+function todayIso() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// withYear: true always, false only when it is not this year, 'never' for tight spots
+function fmtDay(d, withYear = false) {
+  const date = new Date(d + 'T00:00:00');
+  const year = withYear === true || (withYear !== 'never' && date.getFullYear() !== new Date().getFullYear());
+  return date.toLocaleDateString('it-IT', { day: 'numeric', month: 'short', ...(year ? { year: 'numeric' } : {}) });
+}
+
+function subTabOf(item) {
+  return item.userStatus === 'dismissed' ? 'dismissed' : item.kind;
+}
+
+// Lookup by key without touching the DOM (keys go through data-key attributes, never into inline JS)
+function findSub(key) {
+  return Data.getSubscriptions(todayIso()).find(i => i.key === key) || null;
+}
+
+function subStatusPill(item) {
+  return item.active
+    ? `<span class="sub-pill ok"><span class="sub-pill-dot"></span>Attivo</span>`
+    : `<span class="sub-pill stop"><span class="sub-pill-dot"></span>Interrotto</span>`;
+}
+
+function subUserPill(item) {
+  if (item.userStatus === 'confirmed') return item.detected
+    ? `<span class="sub-pill user"><i data-lucide="badge-check" class="lucide-icon icon-xs"></i>Confermato</span>`
+    : `<span class="sub-pill user"><i data-lucide="hand" class="lucide-icon icon-xs"></i>A mano</span>`;
+  if (item.userStatus === 'dismissed') return `<span class="sub-pill"><i data-lucide="eye-off" class="lucide-icon icon-xs"></i>Ignorato</span>`;
+  return '';
+}
+
+function subAmountLabel(item) {
+  const f = Subscriptions.FREQS[item.frequency];
+  return `${item.amountMax - item.amountMin > 0.01 && item.kind === 'recurring' ? '~' : ''}${fmt(item.amount)}<span class="sub-per">/${f.short}</span>`;
+}
+
+function renderSubCard(item) {
+  const style = Charts.categoryStyle(item.category);
+  const f = Subscriptions.FREQS[item.frequency];
+  const next = item.active
+    ? `<div><span>Prossimo</span><strong>${fmtDay(item.nextDate, 'never')}</strong></div>`
+    : `<div class="missed"><span>Atteso</span><strong>${fmtDay(item.nextDate, 'never')}</strong></div>`;
+  return `<button type="button" class="sub-card${item.active ? '' : ' stopped'}" data-key="${escHtml(item.key)}" onclick="openSubDetail(this.dataset.key)">
+    <div class="sub-card-head">
+      <div class="tx-avatar" style="--c:${style.color}"><i data-lucide="${style.icon}" class="lucide-icon"></i></div>
+      <div class="sub-card-title">
+        <div class="sub-name">${escHtml(item.name)}</div>
+        <div class="sub-meta">${f.label} · ${item.count} addebit${item.count === 1 ? 'o' : 'i'}</div>
+      </div>
+      <div class="sub-card-amount">${subAmountLabel(item)}</div>
+    </div>
+    <div class="sub-pills">${subStatusPill(item)}${subUserPill(item)}</div>
+    <div class="sub-stats">
+      ${next}
+      <div><span>Ultimo</span><strong>${fmtDay(item.lastDate, 'never')}</strong></div>
+      <div><span>Al mese</span><strong>${fmt(item.monthly)}</strong></div>
+      <div><span>All'anno</span><strong>${fmt(item.yearly)}</strong></div>
+    </div>
+  </button>`;
+}
+
+// Subscription charges per month over the last 12 months (other fixed costs counted apart)
+function subMonthlySeries(items) {
+  const now = new Date();
+  const months = [];
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+  }
+  const idx = new Map(months.map((m, i) => [m, i]));
+  const subs = months.map(() => 0), rec = months.map(() => 0);
+  const byId = new Map(Data.get().transactions.map(t => [t.id, t]));
+  items.filter(i => i.userStatus !== 'dismissed').forEach(i => {
+    const target = i.kind === 'subscription' ? subs : i.kind === 'recurring' ? rec : null;
+    if (!target) return;
+    i.txIds.forEach(id => {
+      const t = byId.get(id);
+      const k = t && idx.get(t.date.substring(0, 7));
+      if (k !== undefined) target[k] += Math.abs(t.amountEUR);
+    });
+  });
+  return { months, subs, rec };
+}
+
+function renderSubscriptions() {
+  const items = Data.getSubscriptions(todayIso());
+  const tot = Subscriptions.totals(items);
+
+  setText('sub-kpi-monthly', fmt(tot.monthly));
+  setText('sub-kpi-yearly', fmtCompact(tot.yearly));
+  setText('sub-kpi-count', tot.count);
+  setText('sub-kpi-recurring', fmtCompact(tot.recurringMonthly));
+
+  const series = subMonthlySeries(items);
+  if (series.subs.some(v => v > 0)) {
+    set('sub-chart-wrap', '<canvas id="chart-subs"></canvas>');
+    Charts.subscriptionMonths('chart-subs', series.months, series.subs);
+  } else {
+    Charts.destroy('chart-subs');
+    set('sub-chart-wrap', emptyChart('Nessun addebito di abbonamenti negli ultimi 12 mesi'));
+  }
+
+  const counts = {};
+  items.forEach(i => { const t = subTabOf(i); counts[t] = (counts[t] || 0) + 1; });
+  set('sub-tabs', SUB_TABS.map(t =>
+    `<button type="button" role="tab" class="sub-tab${S.subTab === t.id ? ' active' : ''}" aria-selected="${S.subTab === t.id}" onclick="setSubTab('${t.id}')">
+      ${t.label}<span class="sub-tab-count">${counts[t.id] || 0}</span></button>`).join(''));
+
+  const list = items.filter(i => subTabOf(i) === S.subTab);
+  if (!list.length) {
+    const empty = {
+      subscription: items.length
+        ? ['repeat', 'Nessun abbonamento confermato', 'Controlla "Da verificare" o aggiungine uno a mano.']
+        : ['repeat', 'Nessun pagamento ricorrente trovato', 'Servono almeno 2–3 addebiti regolari dello stesso esercente. Importa altri estratti conto o aggiungi un abbonamento a mano.'],
+      uncertain:  ['circle-help', 'Niente da verificare', 'I pagamenti regolari senza un marchio noto compaiono qui.'],
+      recurring:  ['home', 'Nessuna spesa fissa', 'Affitto, bollette, rate e assicurazioni ricorrenti compaiono qui.'],
+      dismissed:  ['eye-off', 'Nessun elemento ignorato', 'Ciò che ignori finisce qui e puoi ripristinarlo quando vuoi.']
+    }[S.subTab];
+    set('sub-list', `<div class="card">${emptyState(empty[0], empty[1], empty[2],
+      S.subTab === 'subscription' ? `<button class="btn btn-primary btn-sm" onclick="openSubAddModal()"><i data-lucide="plus" class="lucide-icon icon-sm"></i> Aggiungi a mano</button>` : '')}</div>`);
+  } else {
+    const active = list.filter(i => i.active), stopped = list.filter(i => !i.active);
+    set('sub-list',
+      (active.length ? `<div class="sub-grid">${active.map(renderSubCard).join('')}</div>` : '') +
+      (stopped.length ? `<div class="sub-section-label">Interrotti · nessun addebito alla data attesa</div><div class="sub-grid">${stopped.map(renderSubCard).join('')}</div>` : ''));
+  }
+
+  if (S.subKey && !el('modal-sub').classList.contains('hidden')) renderSubDetail(S.subKey);
+  refreshIcons();
+}
+
+function setSubTab(tab) {
+  S.subTab = tab;
+  renderSubscriptions();
+}
+
+function openSubDetail(key) {
+  S.subKey = key;
+  if (!renderSubDetail(key)) return;
+  el('modal-sub').classList.remove('hidden');
+  refreshIcons();
+}
+
+function closeSubModal() {
+  el('modal-sub').classList.add('hidden');
+  S.subKey = null;
+}
+
+function renderSubDetail(key) {
+  const item = findSub(key);
+  if (!item) { closeSubModal(); return false; }
+  const f = Subscriptions.FREQS[item.frequency];
+  const style = Charts.categoryStyle(item.category);
+  const avatar = el('sub-d-avatar');
+  avatar.style.setProperty('--c', style.color);
+  avatar.innerHTML = `<i data-lucide="${style.icon}" class="lucide-icon"></i>`;
+  setText('sub-d-name', item.name);
+  const kindText = item.userStatus === 'confirmed' ? (item.detected ? 'Abbonamento confermato da te' : 'Abbonamento aggiunto a mano')
+    : item.userStatus === 'dismissed' ? `Ignorato · rilevato come ${SUB_KIND_LABEL[item.kind].toLowerCase()}`
+    : `${SUB_KIND_LABEL[item.kind]} · affidabilità ${item.score}%`;
+  setText('sub-d-kind', kindText);
+
+  const status = item.active
+    ? `<div class="wallet-status positive"><i data-lucide="calendar-check" class="lucide-icon icon-sm"></i> Attivo: prossimo addebito previsto il <strong>${fmtDay(item.nextDate, true)}</strong></div>`
+    : `<div class="wallet-status zero"><i data-lucide="calendar-x" class="lucide-icon icon-sm"></i> Sembra interrotto: era atteso il <strong>${fmtDay(item.nextDate, true)}</strong>, nessun addebito dal ${fmtDay(item.lastDate, true)}</div>`;
+  const range = item.amountMax - item.amountMin > 0.01 ? `${fmt(item.amountMin)} – ${fmt(item.amountMax)}` : 'sempre uguale';
+  const txs = item.txIds.map(id => Data.get().transactions.find(t => t.id === id)).filter(Boolean)
+    .sort((a, b) => b.date.localeCompare(a.date));
+  const freqSelect = item.userStatus === 'confirmed'
+    ? `<div class="form-group sub-freq-row"><label for="sub-d-freq">Frequenza</label>
+        <select id="sub-d-freq" data-key="${escHtml(item.key)}" onchange="changeSubFrequency(this.dataset.key, this.value)">
+          ${Subscriptions.FREQ_ORDER.map(k => `<option value="${k}" ${k === item.frequency ? 'selected' : ''}>${Subscriptions.FREQS[k].label}</option>`).join('')}
+        </select></div>`
+    : '';
+
+  set('sub-d-body', `${status}
+    <div class="sub-d-grid">
+      <div><span>Importo tipico</span><strong>${fmt(item.amount)}</strong><em>${range}</em></div>
+      <div><span>Frequenza</span><strong>${f.label}</strong><em>dal ${fmtDay(item.firstDate, true)}</em></div>
+      <div><span>Al mese</span><strong>${fmt(item.monthly)}</strong><em>${fmt(item.yearly)} all'anno</em></div>
+      <div><span>Addebiti</span><strong>${item.count}</strong><em>ultimo ${fmtDay(item.lastDate, true)}</em></div>
+    </div>
+    ${freqSelect}
+    <div class="sub-reasons"><div class="card-heading-sm">Perché</div><ul>${item.reasons.map(r => `<li>${escHtml(r)}</li>`).join('')}</ul></div>
+    <div class="card-heading-sm">Movimenti (${txs.length})</div>
+    <div class="tx-list sub-d-txs">${renderTxList(txs, Data.getCategories())}</div>`);
+
+  const k = escHtml(item.key);
+  let actions;
+  if (item.userStatus === 'confirmed') {
+    actions = `<button class="btn btn-secondary" data-key="${k}" onclick="resetSub(this.dataset.key)"><i data-lucide="rotate-ccw" class="lucide-icon icon-sm"></i> ${item.detected ? 'Annulla conferma' : 'Rimuovi'}</button>`;
+  } else if (item.userStatus === 'dismissed') {
+    actions = `<button class="btn btn-primary" data-key="${k}" onclick="resetSub(this.dataset.key)"><i data-lucide="rotate-ccw" class="lucide-icon icon-sm"></i> Ripristina</button>`;
+  } else {
+    actions = `<button class="btn btn-secondary" data-key="${k}" onclick="dismissSub(this.dataset.key)"><i data-lucide="eye-off" class="lucide-icon icon-sm"></i> Ignora</button>
+      <button class="btn btn-primary" data-key="${k}" onclick="confirmSub(this.dataset.key)"><i data-lucide="badge-check" class="lucide-icon icon-sm"></i> ${item.kind === 'subscription' ? 'Conferma' : 'È un abbonamento'}</button>`;
+  }
+  set('sub-d-actions', actions);
+  refreshIcons();
+  return true;
+}
+
+async function confirmSub(key) {
+  const item = findSub(key);
+  await Data.setSubscriptionPref(key, { status: 'confirmed', manual: !!item && item.kind !== 'subscription' });
+  showToast(`"${item ? item.name : key}" confermato come abbonamento`, 'success');
+  renderSubscriptions();
+}
+
+async function dismissSub(key) {
+  const item = findSub(key);
+  await Data.setSubscriptionPref(key, { status: 'dismissed' });
+  showToast(`"${item ? item.name : key}" ignorato`, 'info');
+  closeSubModal();
+  renderSubscriptions();
+}
+
+async function resetSub(key) {
+  const item = findSub(key);
+  await Data.clearSubscriptionPref(key);
+  showToast(`"${item ? item.name : key}" torna al rilevamento automatico`, 'info');
+  if (!findSub(key)) closeSubModal();
+  renderSubscriptions();
+}
+
+async function changeSubFrequency(key, freq) {
+  const pref = Data.getSubscriptionPrefs()[key];
+  if (!pref) return;
+  await Data.setSubscriptionPref(key, { ...pref, frequency: freq });
+  renderSubscriptions();
+}
+
+function openSubAddModal() {
+  S.subAddKey = null;
+  el('sub-add-search').value = '';
+  set('sub-add-freq', Subscriptions.FREQ_ORDER.map(k =>
+    `<option value="${k}" ${k === 'monthly' ? 'selected' : ''}>${Subscriptions.FREQS[k].label}</option>`).join(''));
+  renderSubAddList();
+  el('modal-sub-add').classList.remove('hidden');
+  refreshIcons();
+}
+
+function closeSubAddModal() {
+  el('modal-sub-add').classList.add('hidden');
+}
+
+function renderSubAddList() {
+  const q = el('sub-add-search').value.trim().toLowerCase();
+  const subs = new Set(Data.getSubscriptions(todayIso()).filter(i => i.kind === 'subscription' && i.userStatus !== 'dismissed').map(i => i.key));
+  const list = Subscriptions.merchants(Data.get().transactions)
+    .filter(m => !subs.has(m.key) && (!q || m.name.toLowerCase().includes(q) || m.key.includes(q)))
+    .slice(0, 60);
+  set('sub-add-list', list.length ? list.map(m =>
+    `<button type="button" role="radio" aria-checked="${m.key === S.subAddKey}" class="sub-pick${m.key === S.subAddKey ? ' selected' : ''}" data-key="${escHtml(m.key)}" onclick="pickSubAdd(this.dataset.key)">
+      <span class="sub-pick-main"><strong>${escHtml(m.name)}</strong><span class="muted small">${m.count} addebit${m.count === 1 ? 'o' : 'i'} · ultimo ${fmtDay(m.lastDate)}</span></span>
+      <span class="sub-pick-amount">${fmt(m.lastAmount)}</span>
+    </button>`).join('')
+    : `<div class="muted small sub-pick-empty">Nessun esercente trovato</div>`);
+}
+
+function pickSubAdd(key) {
+  S.subAddKey = key;
+  // Suggest the frequency the charges already follow, if any
+  const m = Subscriptions.merchants(Data.get().transactions).find(x => x.key === key);
+  const detected = findSub(key);
+  if (detected) el('sub-add-freq').value = detected.frequency;
+  else if (m && m.count === 1) el('sub-add-freq').value = 'monthly';
+  renderSubAddList();
+}
+
+async function handleSaveSubAdd(e) {
+  e.preventDefault();
+  if (!S.subAddKey) { showToast("Scegli prima un esercente", 'warning'); return; }
+  const key = S.subAddKey;
+  await Data.setSubscriptionPref(key, { status: 'confirmed', manual: true, frequency: el('sub-add-freq').value });
+  closeSubAddModal();
+  S.subTab = 'subscription';
+  renderSubscriptions();
+  const item = findSub(key);
+  showToast(`"${item ? item.name : key}" aggiunto agli abbonamenti`, 'success');
 }
 
 // ── SINGLE EXPENSE MODAL ──────────────────────────────────────
@@ -2259,6 +2561,8 @@ document.addEventListener('DOMContentLoaded', () => {
   el('edit-note-form')?.addEventListener('submit', handleSaveNote);
   el('edit-tx-form')?.addEventListener('submit', handleEditTx);
   el('wallet-form')?.addEventListener('submit', handleSaveWallet);
+  el('sub-add-form')?.addEventListener('submit', handleSaveSubAdd);
+  el('sub-add-search')?.addEventListener('input', renderSubAddList);
 
   // Transactions filters
   el('tx-search')?.addEventListener('input', filterTransactions);

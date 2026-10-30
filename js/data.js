@@ -7,6 +7,7 @@ const Data = (() => {
     transactions: [],
     budgets: { default: {} },
     wallets: [],
+    subscriptionPrefs: {},
     exchangeRates: [],
     categories: [
       'Affitto & Casa','Spesa Alimentare','Ristoranti & Bar',
@@ -22,6 +23,7 @@ const Data = (() => {
   let _uid  = null;
   let _unsubTx = null;
   let _unsubWallets = null;
+  let _unsubSubs = null;
 
   const metaDoc   = () => fbDb.doc(`users/${_uid}/meta/main`);
   const txCol     = () => fbDb.collection(`users/${_uid}/transactions`);
@@ -30,6 +32,13 @@ const Data = (() => {
   const budgetCol = () => fbDb.collection(`users/${_uid}/budgets`);
   const walletCol = () => fbDb.collection(`users/${_uid}/wallets`);
   const walletDoc = (id) => fbDb.doc(`users/${_uid}/wallets/${id}`);
+  const subCol    = () => fbDb.collection(`users/${_uid}/subscriptions`);
+  const subDoc    = (key) => fbDb.doc(`users/${_uid}/subscriptions/${Subscriptions.docId(key)}`);
+  const prefsFromDocs = docs => {
+    const map = {};
+    docs.forEach(d => { const v = d.data(); if (v && v.key) map[v.key] = v; });
+    return map;
+  };
 
   function rerenderIfVisible() {
     if (typeof S !== 'undefined' && typeof navigate === 'function' && typeof showScreen !== 'undefined') {
@@ -67,6 +76,11 @@ const Data = (() => {
       _data.wallets = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     } catch(e) { console.warn('wallet load failed:', e); }
 
+    try {
+      const snap = await subCol().get();
+      _data.subscriptionPrefs = prefsFromDocs(snap.docs);
+    } catch(e) { console.warn('subscription prefs load failed:', e); }
+
     if (_unsubTx) _unsubTx();
     _unsubTx = txCol().onSnapshot(snap => {
       snap.docChanges().forEach(change => {
@@ -89,12 +103,20 @@ const Data = (() => {
       rerenderIfVisible();
     }, err => console.warn('wallet snapshot error:', err));
 
+    if (_unsubSubs) _unsubSubs();
+    _unsubSubs = subCol().onSnapshot(snap => {
+      if (snap.metadata.hasPendingWrites) return;
+      _data.subscriptionPrefs = prefsFromDocs(snap.docs);
+      rerenderIfVisible();
+    }, err => console.warn('subscription snapshot error:', err));
+
     return _data;
   }
 
   function cleanup() {
     if (_unsubTx) { _unsubTx(); _unsubTx = null; }
     if (_unsubWallets) { _unsubWallets(); _unsubWallets = null; }
+    if (_unsubSubs) { _unsubSubs(); _unsubSubs = null; }
     _data = null;
     _uid  = null;
   }
@@ -126,6 +148,9 @@ const Data = (() => {
     for (const w of _data.wallets || []) {
       const { id, ...rest } = w;
       await walletDoc(id).set(rest);
+    }
+    for (const [key, pref] of Object.entries(_data.subscriptionPrefs || {})) {
+      await subDoc(key).set({ ...pref, key });
     }
   }
 
@@ -305,6 +330,34 @@ const Data = (() => {
     return { wallet, txs, allocated, spent, credits, available, remaining, pctUsed, byCategory, status };
   }
 
+  // ── Subscriptions ───────────────────────────────────────────
+  // users/{uid}/subscriptions/{docId(key)}: { key, status: 'confirmed'|'dismissed', manual, frequency?, name?, updatedAt }
+  // key is Subscriptions.merchantKey(description), with "~<rounded amount>" when one merchant has several amounts.
+  // Detections themselves are never stored: they are recomputed from the transactions.
+  function getSubscriptionPrefs() { return _data ? (_data.subscriptionPrefs || {}) : {}; }
+
+  function getSubscriptions(today) {
+    return _data ? Subscriptions.detect(_data.transactions, getSubscriptionPrefs(), today) : [];
+  }
+
+  async function setSubscriptionPref(key, pref) {
+    if (!_data) return;
+    const doc = { key, status: pref.status, manual: !!pref.manual, updatedAt: new Date().toISOString() };
+    if (pref.frequency) doc.frequency = pref.frequency;
+    if (pref.name) doc.name = pref.name;
+    _data.subscriptionPrefs = { ...getSubscriptionPrefs(), [key]: doc };
+    await subDoc(key).set(doc);
+  }
+
+  // Back to the automatic detection
+  async function clearSubscriptionPref(key) {
+    if (!_data) return;
+    const prefs = { ...getSubscriptionPrefs() };
+    delete prefs[key];
+    _data.subscriptionPrefs = prefs;
+    await subDoc(key).delete();
+  }
+
   function getCategories() { return _data ? _data.categories : []; }
 
   async function addCategory(name) {
@@ -402,7 +455,7 @@ const Data = (() => {
 
   async function clearAll() {
     await clearAllTransactions();
-    if (_data) { _data.budgets = { default: {} }; _data.wallets = []; _data.settings = DEFAULTS.settings; }
+    if (_data) { _data.budgets = { default: {} }; _data.wallets = []; _data.subscriptionPrefs = {}; _data.settings = DEFAULTS.settings; }
     await saveMeta();
     try {
       const snap = await budgetCol().get();
@@ -416,6 +469,12 @@ const Data = (() => {
       snap.docs.forEach(d => batch.delete(d.ref));
       await batch.commit();
     } catch(e) { console.warn('clearAll wallets:', e); }
+    try {
+      const snap = await subCol().get();
+      const batch = fbDb.batch();
+      snap.docs.forEach(d => batch.delete(d.ref));
+      await batch.commit();
+    } catch(e) { console.warn('clearAll subscriptions:', e); }
   }
 
   // Legacy compat
@@ -431,6 +490,7 @@ const Data = (() => {
     addExchangeRates, getExchangeRates, getWeightedAverageRate,
     getCategories, addCategory, deleteCategory,
     getWallets, getWallet, saveWallet, deleteWallet, getWalletStats, assignWallet,
+    getSubscriptionPrefs, getSubscriptions, setSubscriptionPref, clearSubscriptionPref,
     getMonthlyTotals, getCategoryTotals, getAnnualCategoryTotals,
     getAvailableYears, getAvailableMonths,
     getSettings, updateSettings
