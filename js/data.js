@@ -341,6 +341,27 @@ const Data = (() => {
     return _data ? Subscriptions.detect(_data.transactions, getSubscriptionPrefs(), today) : [];
   }
 
+  // Shared subscriptions count only my part in spending totals; the transactions keep the full amount.
+  // Recomputed when the transactions or the split prefs change.
+  let _shareCache = { sig: null, map: {} };
+  function shareFactors() {
+    if (!_data) return {};
+    const prefs = getSubscriptionPrefs();
+    const split = Object.values(prefs).filter(p => p && p.shares > 1 && p.status !== 'dismissed');
+    if (!split.length) return {};
+    const txs = _data.transactions;
+    const sig = txs.length + '|' + (txs[0]?.id || '') + '|' + (txs[txs.length - 1]?.id || '') + '|' +
+      JSON.stringify(Object.entries(prefs).map(([k, p]) => [k, p.status, p.shares, p.frequency]));
+    if (_shareCache.sig !== sig) _shareCache = { sig, map: Subscriptions.shareFactors(getSubscriptions()) };
+    return _shareCache.map;
+  }
+
+  // What a transaction costs me (amountEUR, scaled for shared subscriptions)
+  function myAmount(t, factors = shareFactors()) {
+    const f = factors[t.id];
+    return f ? Math.round(t.amountEUR * f * 100) / 100 : t.amountEUR;
+  }
+
   // Fields left out of `pref` keep their saved value; name: '' removes the custom name
   async function setSubscriptionPref(key, pref) {
     if (!_data) return;
@@ -352,19 +373,24 @@ const Data = (() => {
     if (frequency) doc.frequency = frequency;
     const name = 'name' in pref ? String(pref.name || '').trim().substring(0, 60) : cur.name;
     if (name) doc.name = name;
-    if (!doc.status && !doc.name) { await clearSubscriptionPref(key); return; }
+    const shares = Math.floor('shares' in pref ? +pref.shares : +cur.shares);
+    if (shares >= 2 && shares <= 20) doc.shares = shares;
+    if (!doc.status && !doc.name && !doc.shares) { await clearSubscriptionPref(key, false); return; }
     _data.subscriptionPrefs = { ...getSubscriptionPrefs(), [key]: doc };
     await subDoc(key).set(doc);
   }
 
-  // Back to the automatic detection (a custom name is kept unless keepName is false)
+  // Back to the automatic detection (a custom name and split are kept unless keepName is false)
   async function clearSubscriptionPref(key, keepName = true) {
     if (!_data) return;
     const prefs = { ...getSubscriptionPrefs() };
     const name = keepName ? prefs[key]?.name : null;
+    const shares = keepName ? prefs[key]?.shares : null;
     delete prefs[key];
-    if (name) {
-      const doc = { key, manual: false, name, updatedAt: new Date().toISOString() };
+    if (name || shares) {
+      const doc = { key, manual: false, updatedAt: new Date().toISOString() };
+      if (name) doc.name = name;
+      if (shares) doc.shares = shares;
       prefs[key] = doc;
       _data.subscriptionPrefs = prefs;
       await subDoc(key).set(doc);
@@ -396,14 +422,16 @@ const Data = (() => {
       months[k] = { income: 0, expenses: 0, net: 0 };
     }
     if (!_data) return months;
+    const fx = shareFactors();
     _data.transactions
       .filter(t => t.year === yr && t.category !== '__exchange__')
       .forEach(t => {
         const k = t.month;
+        const a = myAmount(t, fx);
         if (!months[k]) months[k] = { income: 0, expenses: 0, net: 0 };
-        if (t.amountEUR > 0) months[k].income   += t.amountEUR;
-        else                  months[k].expenses += Math.abs(t.amountEUR);
-        months[k].net += t.amountEUR;
+        if (a > 0) months[k].income   += a;
+        else       months[k].expenses += Math.abs(a);
+        months[k].net += a;
       });
     return months;
   }
@@ -411,19 +439,21 @@ const Data = (() => {
   function getCategoryTotals(yearMonth) {
     const totals = {};
     if (!_data) return totals;
+    const fx = shareFactors();
     _data.transactions
       .filter(t => t.month === yearMonth && t.category !== '__exchange__' && t.amountEUR < 0)
-      .forEach(t => { totals[t.category] = (totals[t.category] || 0) + Math.abs(t.amountEUR); });
+      .forEach(t => { totals[t.category] = (totals[t.category] || 0) + Math.abs(myAmount(t, fx)); });
     return totals;
   }
 
   function getAnnualCategoryTotals(year) {
     const totals = {};
     if (!_data) return totals;
+    const fx = shareFactors();
     const yr = parseInt(year);
     _data.transactions
       .filter(t => t.year === yr && t.category !== '__exchange__' && t.amountEUR < 0)
-      .forEach(t => { totals[t.category] = (totals[t.category] || 0) + Math.abs(t.amountEUR); });
+      .forEach(t => { totals[t.category] = (totals[t.category] || 0) + Math.abs(myAmount(t, fx)); });
     return totals;
   }
 
@@ -506,7 +536,7 @@ const Data = (() => {
     addExchangeRates, getExchangeRates, getWeightedAverageRate,
     getCategories, addCategory, deleteCategory,
     getWallets, getWallet, saveWallet, deleteWallet, getWalletStats, assignWallet,
-    getSubscriptionPrefs, getSubscriptions, setSubscriptionPref, clearSubscriptionPref,
+    getSubscriptionPrefs, getSubscriptions, setSubscriptionPref, clearSubscriptionPref, shareFactors, myAmount,
     getMonthlyTotals, getCategoryTotals, getAnnualCategoryTotals,
     getAvailableYears, getAvailableMonths,
     getSettings, updateSettings

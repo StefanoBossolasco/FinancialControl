@@ -225,11 +225,12 @@ const Charts = (() => {
     const labels = MONTHS;
     const catMap = {};
 
+    const fx = Data.shareFactors();
     txs.filter(t => t.category !== '__exchange__' && t.amountEUR < 0).forEach(t => {
       const m = new Date(t.date).getMonth(); // 0-11
       const c = t.category || 'Altro';
       if (!catMap[c]) catMap[c] = new Array(12).fill(0);
-      catMap[c][m] += Math.abs(t.amountEUR);
+      catMap[c][m] += Math.abs(Data.myAmount(t, fx));
     });
 
     const datasets = Object.entries(catMap).map(([cat, values]) => ({

@@ -764,6 +764,9 @@ th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
 .sub-name-input { display: flex; gap: 8px; }
 .sub-name-input input { flex: 1; min-width: 0; }
 .sub-name-input .btn { flex-shrink: 0; }
+.sub-name-input select { flex: 1; min-width: 0; }
+.sub-share-note { font-size: 0.8rem; color: var(--text2); margin-top: 0.4rem; line-height: 1.4; }
+.sub-share-note strong { color: var(--text); }
 .sub-reasons ul { margin: 0; padding-left: 1.1rem; display: flex; flex-direction: column; gap: 3px; font-size: 0.88rem; color: var(--text2); }
 .sub-reasons .card-heading-sm { margin-bottom: 0.35rem; }
 #modal-sub .card-heading-sm { margin-bottom: 0; }

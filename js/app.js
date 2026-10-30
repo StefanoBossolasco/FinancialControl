@@ -163,7 +163,8 @@ function renderDashboard() {
   const exp    = txs.filter(t => t.amountEUR < 0);
   const inc    = txs.filter(t => t.amountEUR > 0);
 
-  const totalExp = exp.reduce((s,t) => s + Math.abs(t.amountEUR), 0);
+  const fx       = Data.shareFactors();
+  const totalExp = exp.reduce((s,t) => s + Math.abs(Data.myAmount(t, fx)), 0);
   const totalInc = inc.reduce((s,t) => s + t.amountEUR, 0);
   const budgets  = Data.getAllBudgets(ym);
   const totalBud = Object.values(budgets).reduce((s,v) => s+v, 0);
@@ -1076,7 +1077,7 @@ function renderSubCard(item) {
       <div class="tx-avatar" style="--c:${style.color}"><i data-lucide="${style.icon}" class="lucide-icon"></i></div>
       <div class="sub-card-title">
         <div class="sub-name">${escHtml(item.name)}</div>
-        <div class="sub-meta">${f.label} · ${item.count} addebit${item.count === 1 ? 'o' : 'i'}</div>
+        <div class="sub-meta">${f.label} · ${item.count} addebit${item.count === 1 ? 'o' : 'i'}${item.shares > 1 ? ` · diviso in ${item.shares}` : ''}</div>
       </div>
       <div class="sub-card-amount">${subAmountLabel(item)}</div>
     </div>
@@ -1084,8 +1085,8 @@ function renderSubCard(item) {
     <div class="sub-stats">
       ${next}
       <div><span>Ultimo</span><strong>${fmtDay(item.lastDate, 'never')}</strong></div>
-      <div><span>Al mese</span><strong>${fmt(item.monthly)}</strong></div>
-      <div><span>All'anno</span><strong>${fmt(item.yearly)}</strong></div>
+      <div><span>${item.shares > 1 ? 'Tua quota/mese' : 'Al mese'}</span><strong>${fmt(item.myMonthly)}</strong></div>
+      <div><span>${item.shares > 1 ? 'Tua quota/anno' : "All'anno"}</span><strong>${fmt(item.myYearly)}</strong></div>
     </div>
   </button>`;
 }
@@ -1101,13 +1102,14 @@ function subMonthlySeries(items) {
   const idx = new Map(months.map((m, i) => [m, i]));
   const subs = months.map(() => 0), rec = months.map(() => 0);
   const byId = new Map(Data.get().transactions.map(t => [t.id, t]));
+  const fx = Data.shareFactors();
   items.filter(i => i.userStatus !== 'dismissed').forEach(i => {
     const target = i.kind === 'subscription' ? subs : i.kind === 'recurring' ? rec : null;
     if (!target) return;
     i.txIds.forEach(id => {
       const t = byId.get(id);
       const k = t && idx.get(t.date.substring(0, 7));
-      if (k !== undefined) target[k] += Math.abs(t.amountEUR);
+      if (k !== undefined) target[k] += Math.abs(Data.myAmount(t, fx));
     });
   });
   return { months, subs, rec };
@@ -1213,12 +1215,26 @@ function renderSubDetail(key) {
       </div>
     </form>`;
 
+  const shareRow = `<form class="sub-name-row" data-key="${escHtml(item.key)}" onsubmit="event.preventDefault(); shareSub(this.dataset.key, this.elements.shares.value)">
+      <label for="sub-d-shares">Diviso tra</label>
+      <div class="sub-name-input">
+        <select id="sub-d-shares" name="shares" onchange="this.form.requestSubmit()">
+          ${Array.from({ length: 10 }, (_, i) => i + 1).map(n =>
+            `<option value="${n}" ${n === item.shares ? 'selected' : ''}>${n === 1 ? 'Solo io' : `${n} persone (me compreso)`}</option>`).join('')}
+        </select>
+      </div>
+      <div class="sub-share-note">${item.shares > 1
+        ? `Paghi ${fmt(item.amount)}, la tua quota è <strong>${fmt(item.amount / item.shares)}</strong>. Nei movimenti resta l'importo pieno; nei totali di spesa conta solo la tua quota.`
+        : 'Se lo condividi con altri, nei totali di spesa conterà solo la tua quota.'}</div>
+    </form>`;
+
   set('sub-d-body', `${status}
     ${nameRow}
+    ${shareRow}
     <div class="sub-d-grid">
       <div><span>Importo tipico</span><strong>${fmt(item.amount)}</strong><em>${range}</em></div>
       <div><span>Frequenza</span><strong>${f.label}</strong><em>dal ${fmtDay(item.firstDate, true)}</em></div>
-      <div><span>Al mese</span><strong>${fmt(item.monthly)}</strong><em>${fmt(item.yearly)} all'anno</em></div>
+      <div><span>${item.shares > 1 ? 'Tua quota/mese' : 'Al mese'}</span><strong>${fmt(item.myMonthly)}</strong><em>${item.shares > 1 ? `${fmt(item.monthly)} in totale` : `${fmt(item.yearly)} all'anno`}</em></div>
       <div><span>Addebiti</span><strong>${item.count}</strong><em>ultimo ${fmtDay(item.lastDate, true)}</em></div>
     </div>
     ${freqSelect}
@@ -1269,6 +1285,14 @@ async function renameSub(key, name) {
   const item = findSub(key);
   showToast(name.trim() ? `Rinominato in "${name.trim()}"` : `Nome originale ripristinato: "${item ? item.name : key}"`, 'success');
   renderSubscriptions();
+}
+
+async function shareSub(key, shares) {
+  const n = parseInt(shares, 10) || 1;
+  await Data.setSubscriptionPref(key, { shares: n });
+  showToast(n > 1 ? `Diviso tra ${n} persone: conta solo la tua quota` : 'Non più diviso', 'success');
+  renderSubscriptions();
+  if (['dashboard', 'analytics'].includes(S.view)) navigate(S.view);
 }
 
 async function changeSubFrequency(key, freq) {
@@ -1634,7 +1658,8 @@ function renderAnalytics() {
   const monthly  = Data.getMonthlyTotals(selYear);
 
   // Annual KPIs
-  const yearExp  = yearTxs.filter(t => t.amountEUR < 0).reduce((s,t) => s+Math.abs(t.amountEUR),0);
+  const fx       = Data.shareFactors();
+  const yearExp  = yearTxs.filter(t => t.amountEUR < 0).reduce((s,t) => s+Math.abs(Data.myAmount(t, fx)),0);
   const yearInc  = yearTxs.filter(t => t.amountEUR > 0).reduce((s,t) => s+t.amountEUR,0);
   const yearNet  = yearInc - yearExp;
   setText('an-total-exp',  fmtCompact(yearExp));

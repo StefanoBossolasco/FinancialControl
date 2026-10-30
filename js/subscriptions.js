@@ -256,8 +256,28 @@ const Subscriptions = (() => {
     return /(^|[^a-z])to person\b/i.test(t.details || '') || /^(transfer to|bonifico)\b/i.test(String(t.description || '').trim());
   }
 
+  // Brands usually billed once a year: a single recent charge is enough
+  const YEARLY_KW = ['amazon prime'];
+
+  // One charge from a subscription brand: likely a yearly plan (Amazon Prime), if it is recent
+  function analyseSingle(key, allTxs, txs, today) {
+    const t = txs[0];
+    const text = cleanText(t.description + ' | ' + (t.details || ''));
+    const subKw = subKeyword(text);
+    const amount = Math.abs(t.amountEUR);
+    const known = YEARLY_KW.includes(subKw);
+    if (!subKw || (!known && (amount < 25 || amount > 250))) return null;
+    const item = { ...buildItem(key, txs, null, today, 'yearly'), txIds: allTxs.map(x => x.id).reverse() };
+    if (!item.active) return null;
+    const reasons = ['Un solo addebito recente di un servizio in abbonamento: piano annuale?',
+      `Parola chiave abbonamento: "${subKw}"`];
+    return { ...item, kind: known ? 'subscription' : 'uncertain', score: known ? 60 : 45,
+      regularity: null, amountStability: 1, reasons, detected: true };
+  }
+
   function analyse(key, allTxs, today, isCluster = false) {
     const txs = occurrences(allTxs);
+    if (txs.length === 1 && !isCluster) return analyseSingle(key, allTxs, txs, today);
     if (txs.length < 2) return null;
     const period = bestPeriod(txs.map(t => t.date));
     if (!period || period.regularity < 0.7) return null;
@@ -272,14 +292,16 @@ const Subscriptions = (() => {
     const subCat = SUB_CATEGORIES.includes(category);
     const recCat = RECURRING_CATEGORIES.includes(category);
     // A fixed monthly sum to a person is usually a share of a subscription (family plan, shared account)
+    const sameAmount = Math.max(...amounts) - Math.min(...amounts) < 0.01;
+    // 3 payments of a stable sum, or 2 of exactly the same sum one period apart
     const person = !subKw && !recKw && txs.every(isPersonPayment);
-    const shared = person && !isCluster && txs.length >= 3 && amt >= 0.85 && median(amounts) <= 60 && period.freq !== 'weekly';
+    const shared = person && !isCluster && period.freq !== 'weekly' && median(amounts) <= 60 &&
+      ((txs.length >= 3 && amt >= 0.85) || (txs.length === 2 && sameAmount && period.exact === 1));
     const subSignal = !!(subKw || subCat || shared);
     const recSignal = !subSignal && !!(recKw || recCat);
 
     // Enough charges: the frequency's minimum, or 2 (not weekly) with a brand/category or the same amount.
     // A split by amount needs 3 charges without a subscription signal (2 similar ones are often chance).
-    const sameAmount = Math.max(...amounts) - Math.min(...amounts) < 0.01;
     const enough = txs.length >= f.minCount ||
       (txs.length >= 2 && period.freq !== 'weekly' && (subSignal || (!isCluster && (recSignal || sameAmount))));
     if (!enough) return null;
@@ -339,7 +361,11 @@ const Subscriptions = (() => {
       if (!pref) continue;
       let it = byKey.get(key);
       // A name alone (no status) just renames the detection
-      if (!pref.status) { if (it && pref.name) { it.detectedName = it.name; it.name = pref.name; } continue; }
+      if (!pref.status) {
+        if (it && pref.name) { it.detectedName = it.name; it.name = pref.name; }
+        if (it) applyShares(it, pref);
+        continue;
+      }
       if (!it && pref.status === 'confirmed') {
         const base = key.replace(/~.*$/, '');
         let txs = groups.get(base);
@@ -361,23 +387,44 @@ const Subscriptions = (() => {
         Object.assign(it, buildItem(key, occurrences(txs), null, today, pref.frequency), { txIds: it.txIds });
       }
       if (pref.name) { it.detectedName = it.name; it.name = pref.name; }
+      applyShares(it, pref);
       it.detectedKind = it.detected ? it.kind : null;
       it.userStatus = pref.status;
       if (pref.status === 'confirmed') it.kind = 'subscription';
     }
 
+    items.forEach(it => { if (!it.shares) applyShares(it, {}); });
     const rank = { subscription: 0, uncertain: 1, recurring: 2 };
     items.sort((a, b) => (b.active - a.active) || (rank[a.kind] - rank[b.kind]) || (b.monthly - a.monthly));
     return items;
   }
 
+  // Split between people: shares = how many pay for it (me included); myMonthly is my part
+  function applyShares(it, pref) {
+    const n = Math.floor(+pref.shares);
+    it.shares = n >= 2 && n <= 20 ? n : 1;
+    it.myMonthly = Math.round(it.monthly / it.shares * 100) / 100;
+    it.myYearly = Math.round(it.yearly / it.shares * 100) / 100;
+  }
+
+  // Factor applied to each charge in spending totals: { txId: 1/shares } for split items
+  function shareFactors(items) {
+    const map = {};
+    items.forEach(i => {
+      if (i.shares > 1 && i.userStatus !== 'dismissed') i.txIds.forEach(id => { map[id] = 1 / i.shares; });
+    });
+    return map;
+  }
+
   function totals(items) {
     const subs = items.filter(i => i.kind === 'subscription' && i.userStatus !== 'dismissed' && i.active);
     const rec  = items.filter(i => i.kind === 'recurring' && i.userStatus !== 'dismissed' && i.active);
-    const monthly = subs.reduce((s, i) => s + i.monthly, 0);
+    const mine = i => i.myMonthly ?? i.monthly;
+    const monthly = subs.reduce((s, i) => s + mine(i), 0);
     return {
       count: subs.length, monthly, yearly: monthly * 12,
-      recurringCount: rec.length, recurringMonthly: rec.reduce((s, i) => s + i.monthly, 0)
+      fullMonthly: subs.reduce((s, i) => s + i.monthly, 0),
+      recurringCount: rec.length, recurringMonthly: rec.reduce((s, i) => s + mine(i), 0)
     };
   }
 
@@ -389,7 +436,7 @@ const Subscriptions = (() => {
     })).sort((a, b) => b.lastDate.localeCompare(a.lastDate));
   }
 
-  return { FREQS, FREQ_ORDER, merchantKey, docId, addPeriod, detect, totals, merchants };
+  return { FREQS, FREQ_ORDER, merchantKey, docId, addPeriod, detect, totals, merchants, shareFactors };
 })();
 
 if (typeof module !== 'undefined') module.exports = Subscriptions;
