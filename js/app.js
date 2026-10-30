@@ -1186,6 +1186,7 @@ function renderSubDetail(key) {
   avatar.style.setProperty('--c', style.color);
   avatar.innerHTML = `<i data-lucide="${style.icon}" class="lucide-icon"></i>`;
   setText('sub-d-name', item.name);
+  const pref = Data.getSubscriptionPrefs()[item.key];
   const kindText = item.userStatus === 'confirmed' ? (item.detected ? 'Abbonamento confermato da te' : 'Abbonamento aggiunto a mano')
     : item.userStatus === 'dismissed' ? `Ignorato · rilevato come ${SUB_KIND_LABEL[item.kind].toLowerCase()}`
     : `${SUB_KIND_LABEL[item.kind]} · affidabilità ${item.score}%`;
@@ -1204,7 +1205,16 @@ function renderSubDetail(key) {
         </select></div>`
     : '';
 
+  const nameRow = `<form class="sub-name-row" data-key="${escHtml(item.key)}" onsubmit="event.preventDefault(); renameSub(this.dataset.key, this.elements.name.value)">
+      <label for="sub-d-rename">Nome</label>
+      <div class="sub-name-input">
+        <input type="text" id="sub-d-rename" name="name" maxlength="60" value="${escHtml(pref?.name || '')}" placeholder="${escHtml(item.detectedName || item.name)}" autocomplete="off">
+        <button type="submit" class="btn btn-secondary btn-sm">Salva nome</button>
+      </div>
+    </form>`;
+
   set('sub-d-body', `${status}
+    ${nameRow}
     <div class="sub-d-grid">
       <div><span>Importo tipico</span><strong>${fmt(item.amount)}</strong><em>${range}</em></div>
       <div><span>Frequenza</span><strong>${f.label}</strong><em>dal ${fmtDay(item.firstDate, true)}</em></div>
@@ -1254,6 +1264,13 @@ async function resetSub(key) {
   renderSubscriptions();
 }
 
+async function renameSub(key, name) {
+  await Data.setSubscriptionPref(key, { name });
+  const item = findSub(key);
+  showToast(name.trim() ? `Rinominato in "${name.trim()}"` : `Nome originale ripristinato: "${item ? item.name : key}"`, 'success');
+  renderSubscriptions();
+}
+
 async function changeSubFrequency(key, freq) {
   const pref = Data.getSubscriptionPrefs()[key];
   if (!pref) return;
@@ -1264,6 +1281,7 @@ async function changeSubFrequency(key, freq) {
 function openSubAddModal() {
   S.subAddKey = null;
   el('sub-add-search').value = '';
+  el('sub-add-name').value = '';
   set('sub-add-freq', Subscriptions.FREQ_ORDER.map(k =>
     `<option value="${k}" ${k === 'monthly' ? 'selected' : ''}>${Subscriptions.FREQS[k].label}</option>`).join(''));
   renderSubAddList();
@@ -1303,7 +1321,8 @@ async function handleSaveSubAdd(e) {
   e.preventDefault();
   if (!S.subAddKey) { showToast("Scegli prima un esercente", 'warning'); return; }
   const key = S.subAddKey;
-  await Data.setSubscriptionPref(key, { status: 'confirmed', manual: true, frequency: el('sub-add-freq').value });
+  await Data.setSubscriptionPref(key, { status: 'confirmed', manual: true, frequency: el('sub-add-freq').value,
+    name: el('sub-add-name').value });
   closeSubAddModal();
   S.subTab = 'subscription';
   renderSubscriptions();

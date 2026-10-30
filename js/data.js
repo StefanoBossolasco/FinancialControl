@@ -331,7 +331,8 @@ const Data = (() => {
   }
 
   // ── Subscriptions ───────────────────────────────────────────
-  // users/{uid}/subscriptions/{docId(key)}: { key, status: 'confirmed'|'dismissed', manual, frequency?, name?, updatedAt }
+  // users/{uid}/subscriptions/{docId(key)}: { key, status?: 'confirmed'|'dismissed', manual, frequency?, name?, updatedAt }
+  // A document with only a name (no status) renames a detection without confirming it.
   // key is Subscriptions.merchantKey(description), with "~<rounded amount>" when one merchant has several amounts.
   // Detections themselves are never stored: they are recomputed from the transactions.
   function getSubscriptionPrefs() { return _data ? (_data.subscriptionPrefs || {}) : {}; }
@@ -340,20 +341,35 @@ const Data = (() => {
     return _data ? Subscriptions.detect(_data.transactions, getSubscriptionPrefs(), today) : [];
   }
 
+  // Fields left out of `pref` keep their saved value; name: '' removes the custom name
   async function setSubscriptionPref(key, pref) {
     if (!_data) return;
-    const doc = { key, status: pref.status, manual: !!pref.manual, updatedAt: new Date().toISOString() };
-    if (pref.frequency) doc.frequency = pref.frequency;
-    if (pref.name) doc.name = pref.name;
+    const cur = getSubscriptionPrefs()[key] || {};
+    const status = 'status' in pref ? pref.status : cur.status;
+    const doc = { key, manual: 'manual' in pref ? !!pref.manual : !!cur.manual, updatedAt: new Date().toISOString() };
+    if (status) doc.status = status;
+    const frequency = 'frequency' in pref ? pref.frequency : cur.frequency;
+    if (frequency) doc.frequency = frequency;
+    const name = 'name' in pref ? String(pref.name || '').trim().substring(0, 60) : cur.name;
+    if (name) doc.name = name;
+    if (!doc.status && !doc.name) { await clearSubscriptionPref(key); return; }
     _data.subscriptionPrefs = { ...getSubscriptionPrefs(), [key]: doc };
     await subDoc(key).set(doc);
   }
 
-  // Back to the automatic detection
-  async function clearSubscriptionPref(key) {
+  // Back to the automatic detection (a custom name is kept unless keepName is false)
+  async function clearSubscriptionPref(key, keepName = true) {
     if (!_data) return;
     const prefs = { ...getSubscriptionPrefs() };
+    const name = keepName ? prefs[key]?.name : null;
     delete prefs[key];
+    if (name) {
+      const doc = { key, manual: false, name, updatedAt: new Date().toISOString() };
+      prefs[key] = doc;
+      _data.subscriptionPrefs = prefs;
+      await subDoc(key).set(doc);
+      return;
+    }
     _data.subscriptionPrefs = prefs;
     await subDoc(key).delete();
   }

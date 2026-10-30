@@ -29,8 +29,14 @@ const Subscriptions = (() => {
     'audible', 'kindle', 'storytel', 'chatgpt', 'openai', 'perplexity', 'anthropic', 'claude ai', 'midjourney',
     'github', 'notion', 'dropbox', 'adobe', 'microsoft', 'office 365', 'xbox', 'playstation', 'psn', 'nintendo',
     'patreon', 'substack', 'duolingo', 'headspace', 'strava', 'linkedin', 'canva', '1password', 'nordvpn',
-    'expressvpn', 'proton', 'abbonamento', 'subscription', 'membership', 'palestra', 'gym', 'virgin active', 'mcfit'
+    'expressvpn', 'proton', 'abbonamento', 'subscription', 'membership', 'palestra', 'gym', 'virgin active', 'mcfit',
+    'claude'
   ])];
+  // One merchant under several bank names ("CLAUDE" and "Anthropic" are the same charge)
+  const KEY_ALIAS = {
+    'anthropic': 'claude', 'claude ai': 'claude', 'openai': 'chatgpt', 'discoveryplus': 'discovery plus',
+    'primevideo': 'prime video', 'nowtv': 'now tv'
+  };
 
   // Regular payments that are not subscriptions: housing, loans, utilities, telecom, insurance, taxes
   const RECURRING_KW = [
@@ -76,7 +82,7 @@ const Subscriptions = (() => {
   function merchantKey(desc) {
     const s = cleanText(desc);
     const kw = subKeyword(s);
-    if (kw) return kw;
+    if (kw) return KEY_ALIAS[kw] || kw;
     const toks = s.split(' ').filter(t => t.length > 1 && !/\d/.test(t) && !STOP.has(t));
     if (toks.length) return toks.slice(0, 2).join(' ');
     return s || String(desc || '').toLowerCase().trim();
@@ -117,28 +123,35 @@ const Subscriptions = (() => {
     return amounts.length >= 5 && cv(amounts.slice(-3)) <= 0.005 ? Math.max(all, 0.9) : all;
   }
 
-  // Share of gaps that fit the period; a gap of 2-3 periods (missed or unrecorded charges) counts 0.6
-  function fitPeriod(gaps, freq) {
+  // Share of gaps that fit the period; a gap of 2-3 periods (missed or unrecorded charges) counts 0.6.
+  // Month-based periods also accept a charge in the next calendar month(s) when the day drifts
+  // (manual payments, e.g. Satispay to a friend on the 3rd, then the 12th, then the 1st).
+  function fitPeriod(gaps, monthSteps, freq) {
     const f = FREQS[freq];
     let sum = 0, exact = 0;
-    for (const g of gaps) {
+    gaps.forEach((g, i) => {
       const k = Math.max(1, Math.round(g / f.days));
-      if (k > 3) continue;
-      if (Math.abs(g - k * f.days) <= f.tol * (1 + (k - 1) * 0.5)) {
+      if (k > 3) return;
+      const onTime = Math.abs(g - k * f.days) <= f.tol * (1 + (k - 1) * 0.5);
+      const byCalendar = f.months > 0 && monthSteps[i] === k * f.months && Math.abs(g - k * f.days) <= f.days * 0.5;
+      if (onTime || byCalendar) {
         sum += k === 1 ? 1 : 0.6;
         if (k === 1) exact++;
       }
-    }
+    });
     return { freq, regularity: gaps.length ? sum / gaps.length : 0, exact };
   }
+
+  const monthIndex = d => +d.substring(0, 4) * 12 + +d.substring(5, 7);
 
   function bestPeriod(dates) {
     const ms = dates.map(toMs);
     const gaps = ms.slice(1).map((m, i) => (m - ms[i]) / DAY);
+    const monthSteps = dates.slice(1).map((d, i) => monthIndex(d) - monthIndex(dates[i]));
     if (!gaps.length) return null;
     let best = null;
     for (const fq of FREQ_ORDER) {
-      const fit = fitPeriod(gaps, fq);
+      const fit = fitPeriod(gaps, monthSteps, fq);
       if (!fit.exact) continue;
       if (!best || fit.regularity > best.regularity + 1e-9 ||
           (Math.abs(fit.regularity - best.regularity) < 1e-9 && fit.exact > best.exact)) best = fit;
@@ -188,7 +201,8 @@ const Subscriptions = (() => {
     'prime video': 'Prime Video', 'primevideo': 'Prime Video', 'google one': 'Google One', 'dazn': 'DAZN', 'now tv': 'NOW',
     'nowtv': 'NOW', 'sky': 'Sky', 'timvision': 'TIMVISION', 'chatgpt': 'ChatGPT', 'openai': 'OpenAI', 'github': 'GitHub',
     'linkedin': 'LinkedIn', 'nordvpn': 'NordVPN', 'expressvpn': 'ExpressVPN', 'psn': 'PlayStation', 'xbox': 'Xbox',
-    'paramount': 'Paramount+', 'hulu': 'Hulu', 'perplexity': 'Perplexity', 'adobe': 'Adobe', 'microsoft': 'Microsoft'
+    'paramount': 'Paramount+', 'hulu': 'Hulu', 'perplexity': 'Perplexity', 'adobe': 'Adobe', 'microsoft': 'Microsoft',
+    'claude': 'Claude'
   };
   const titleCase = s => s.toLowerCase().replace(/(^|[\s/&-])([a-z\u00e0-\u00fa])/g, (m, a, b) => a + b.toUpperCase());
 
@@ -226,7 +240,24 @@ const Subscriptions = (() => {
   }
 
   // Scores a group; returns null when it is not a recurring pattern
-  function analyse(key, txs, today, isCluster = false) {
+  // Identical charges on the same day count once (the same payment in two overlapping exports)
+  function occurrences(txs) {
+    const seen = new Set();
+    return txs.filter(t => {
+      const k = t.date + '|' + Math.abs(t.amountEUR).toFixed(2);
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+  }
+
+  // Money sent to a person: Satispay "to Person", Revolut "Transfer to …", bank transfers
+  function isPersonPayment(t) {
+    return /(^|[^a-z])to person\b/i.test(t.details || '') || /^(transfer to|bonifico)\b/i.test(String(t.description || '').trim());
+  }
+
+  function analyse(key, allTxs, today, isCluster = false) {
+    const txs = occurrences(allTxs);
     if (txs.length < 2) return null;
     const period = bestPeriod(txs.map(t => t.date));
     if (!period || period.regularity < 0.7) return null;
@@ -240,7 +271,10 @@ const Subscriptions = (() => {
     const category = mostCommon(txs.map(t => t.category));
     const subCat = SUB_CATEGORIES.includes(category);
     const recCat = RECURRING_CATEGORIES.includes(category);
-    const subSignal = !!(subKw || subCat);
+    // A fixed monthly sum to a person is usually a share of a subscription (family plan, shared account)
+    const person = !subKw && !recKw && txs.every(isPersonPayment);
+    const shared = person && !isCluster && txs.length >= 3 && amt >= 0.85 && median(amounts) <= 60 && period.freq !== 'weekly';
+    const subSignal = !!(subKw || subCat || shared);
     const recSignal = !subSignal && !!(recKw || recCat);
 
     // Enough charges: the frequency's minimum, or 2 (not weekly) with a brand/category or the same amount.
@@ -249,12 +283,15 @@ const Subscriptions = (() => {
     const enough = txs.length >= f.minCount ||
       (txs.length >= 2 && period.freq !== 'weekly' && (subSignal || (!isCluster && (recSignal || sameAmount))));
     if (!enough) return null;
-    // Varying amounts are spending habits (groceries, coffee) unless it is a bill or a subscription
+    // Varying amounts are spending habits (groceries, coffee) unless it is a bill or a subscription;
+    // without any signal, transfers to people and amount splits must also be stable to count
     if (amt < (recSignal || subSignal ? 0.35 : 0.65)) return null;
+    if (!subSignal && !recSignal && (person || isCluster) && amt < 0.85) return null;
+    if (person && !subSignal && !recSignal && txs.length < 3) return null;
 
-    const item = buildItem(key, txs, period, today);
+    const item = { ...buildItem(key, txs, period, today), txIds: allTxs.map(t => t.id).reverse() };
     let score = 40 * period.regularity + 25 * amt + 10 * Math.min(1, (txs.length - 1) / 5);
-    if (subKw) score += 25; else if (subCat) score += 18;
+    if (subKw) score += 25; else if (subCat) score += 18; else if (shared) score += 12;
     score = Math.round(Math.min(100, score));
 
     let kind;
@@ -269,6 +306,8 @@ const Subscriptions = (() => {
     reasons.push(amt >= 0.85 ? 'Importo stabile' : amt >= 0.65 ? 'Importo quasi stabile' : 'Importo variabile');
     if (subKw) reasons.push(`Parola chiave abbonamento: "${subKw}"`);
     else if (subCat) reasons.push(`Categoria ${category}`);
+    else if (shared) reasons.push('Stessa cifra a una persona ogni volta: quota di un abbonamento condiviso?');
+    if (allTxs.length > txs.length) reasons.push(`${allTxs.length - txs.length} addebiti doppi nello stesso giorno contati una volta`);
     if (recKw) reasons.push(`Parola chiave spesa fissa: "${recKw}"`);
     else if (recCat && !subSignal) reasons.push(`Categoria ${category}`);
     if (!subSignal && !recSignal) reasons.push(kind === 'recurring'
@@ -297,8 +336,10 @@ const Subscriptions = (() => {
     // User choices: confirmed (also by hand, for keys never detected) and dismissed
     const byKey = new Map(items.map(it => [it.key, it]));
     for (const [key, pref] of Object.entries(prefs || {})) {
-      if (!pref || !pref.status) continue;
+      if (!pref) continue;
       let it = byKey.get(key);
+      // A name alone (no status) just renames the detection
+      if (!pref.status) { if (it && pref.name) { it.detectedName = it.name; it.name = pref.name; } continue; }
       if (!it && pref.status === 'confirmed') {
         const base = key.replace(/~.*$/, '');
         let txs = groups.get(base);
@@ -307,18 +348,19 @@ const Subscriptions = (() => {
           txs = amountClusters(txs).find(c => Math.round(Math.abs(median(c.map(t => t.amountEUR)))) === target);
         }
         if (!txs || !txs.length) continue;
-        const period = txs.length >= 2 ? bestPeriod(txs.map(t => t.date)) : null;
-        it = { ...buildItem(key, txs, period, today, FREQS[pref.frequency] ? pref.frequency : null),
-          kind: 'subscription', score: null, reasons: ['Aggiunto a mano'], detected: false };
+        const occ = occurrences(txs);
+        const period = occ.length >= 2 ? bestPeriod(occ.map(t => t.date)) : null;
+        it = { ...buildItem(key, occ, period, today, FREQS[pref.frequency] ? pref.frequency : null),
+          txIds: txs.map(t => t.id).reverse(), kind: 'subscription', score: null, reasons: ['Aggiunto a mano'], detected: false };
         items.push(it);
         byKey.set(key, it);
       }
       if (!it) continue;
       if (pref.frequency && FREQS[pref.frequency] && pref.frequency !== it.frequency) {
         const txs = it.txIds.map(id => transactions.find(t => t.id === id)).filter(Boolean).reverse();
-        Object.assign(it, buildItem(key, txs, null, today, pref.frequency));
+        Object.assign(it, buildItem(key, occurrences(txs), null, today, pref.frequency), { txIds: it.txIds });
       }
-      if (pref.name) it.name = pref.name;
+      if (pref.name) { it.detectedName = it.name; it.name = pref.name; }
       it.detectedKind = it.detected ? it.kind : null;
       it.userStatus = pref.status;
       if (pref.status === 'confirmed') it.kind = 'subscription';

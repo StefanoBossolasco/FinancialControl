@@ -29,7 +29,7 @@
   <!-- Lucide Icons -->
   <script src="https://cdn.jsdelivr.net/npm/lucide@0.395.0/dist/umd/lucide.min.js"></script>
 
-  <link rel="stylesheet" href="css/styles.css?v=2.1.0">
+  <link rel="stylesheet" href="css/styles.css?v=2.1.1">
 </head>
 <body>
 
@@ -1167,9 +1167,15 @@
           <input type="text" id="sub-add-search" class="input-with-icon" placeholder="Cerca esercente…" autocomplete="off">
         </div>
         <div class="sub-pick-list" id="sub-add-list" role="radiogroup" aria-label="Esercente"></div>
-        <div class="form-group mb-0 mt-1">
-          <label for="sub-add-freq">Frequenza</label>
-          <select id="sub-add-freq"></select>
+        <div class="grid-2 mt-1">
+          <div class="form-group mb-0">
+            <label for="sub-add-freq">Frequenza</label>
+            <select id="sub-add-freq"></select>
+          </div>
+          <div class="form-group mb-0">
+            <label for="sub-add-name">Nome <span class="optional">opzionale</span></label>
+            <input type="text" id="sub-add-name" maxlength="60" placeholder="es. Spotify Family" autocomplete="off">
+          </div>
         </div>
       </div>
       <div class="modal-footer">
@@ -1186,11 +1192,11 @@
 <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-firestore-compat.js"></script>
 <script src="js/firebase.js?v=2.0"></script>
 <script src="js/auth.js?v=2.0"></script>
-<script src="js/data.js?v=2.5"></script>
+<script src="js/data.js?v=2.6"></script>
 <script src="js/import.js?v=3.2"></script>
-<script src="js/subscriptions.js?v=1.0"></script>
+<script src="js/subscriptions.js?v=1.1"></script>
 <script src="js/charts.js?v=3.1"></script>
-<script src="js/app.js?v=3.2"></script>
+<script src="js/app.js?v=3.3"></script>
 <script>
   // Offline support for the home-screen app (https or localhost only)
   if ('serviceWorker' in navigator) {

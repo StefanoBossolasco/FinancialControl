@@ -760,6 +760,10 @@ th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
 .sub-d-grid strong { font-size: 1.15rem; font-weight: 800; font-variant-numeric: tabular-nums; }
 .sub-d-grid em { font-style: normal; font-size: 0.78rem; color: var(--text3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sub-freq-row { margin-bottom: 0; }
+.sub-name-row label { display: block; font-size: 0.85rem; font-weight: 600; color: var(--text2); margin-bottom: 0.4rem; }
+.sub-name-input { display: flex; gap: 8px; }
+.sub-name-input input { flex: 1; min-width: 0; }
+.sub-name-input .btn { flex-shrink: 0; }
 .sub-reasons ul { margin: 0; padding-left: 1.1rem; display: flex; flex-direction: column; gap: 3px; font-size: 0.88rem; color: var(--text2); }
 .sub-reasons .card-heading-sm { margin-bottom: 0.35rem; }
 #modal-sub .card-heading-sm { margin-bottom: 0; }
